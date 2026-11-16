@@ -32,6 +32,10 @@ The time each app was the one on screen, from Android's UsageStats events. Scree
 
 The app has no third-party runtime libraries. JUnit (EPL-1.0) and Robolectric (MIT) are test-only dependencies; the Android Gradle Plugin (Apache-2.0) is a build tool. They are not bundled in the APK.
 
+## Research notes
+
+- [Android signature permissions, focus time and backup](docs/research/android-signature-permissions-focus-time-and-backup.md) - Android documentation notes with unverified behavior kept explicit.
+
 ## License
 
 SPDX-License-Identifier: GPL-3.0-only
