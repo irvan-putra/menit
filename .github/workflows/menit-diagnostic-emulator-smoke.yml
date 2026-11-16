@@ -18,11 +18,15 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           sha256sum --check <<'HASHES'
-          e6c87e5b18407af4e4d21e171ea9029e11e15f0fe1adae78e8accf746737b429  diagnostic/tools/emulator-smoke.sh
-          e690a66187ee7c197a0da123f1dbed7b045d979ef75c8e66b428a9a5010db1a9  diagnostic/tools/emulator-helpers.sh
+          0ef83a6d9e4fa38b9f9576295f61c8a42523c8b1eef21feb9e1e0cfcde77df64  diagnostic/tools/emulator-smoke.sh
+          83b21e4a377ad5366ef22d19b6ee7f7e74f2c7ac6c61ae7d5682ffb2e44572b0  diagnostic/tools/emulator-helpers.sh
           4ad8e2bf78f05e4230ba5833981dde54616f2e870a92f1924eb5991dd9d41441  diagnostic/tools/emulator-helpers-test.sh
+          cbea2cf124afd4fb8f1759c5ad4bdef8ec99503270022208628e30753fba3b5c  diagnostic/tools/bracket-sorted-test.sh
+          f609c6ce4c368faa988b56d2763b57406b12fd4d60b687824d750b8f5d97bd01  diagnostic/tools/verifier-report-test.sh
           HASHES
           bash diagnostic/tools/emulator-helpers-test.sh
+          bash diagnostic/tools/bracket-sorted-test.sh diagnostic/tools/emulator-helpers.sh
+          bash diagnostic/tools/verifier-report-test.sh diagnostic/tools/emulator-helpers.sh
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with: { distribution: temurin, java-version: '17' }
       - name: Gradle 8.7 (checksum verified)

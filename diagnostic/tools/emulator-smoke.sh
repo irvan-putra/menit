@@ -12,7 +12,19 @@ mkdir -p "$EVIDENCE_DIR"
 
 adb wait-for-device
 adb shell pm clear "$PKG" >/dev/null 2>&1 || true
+# Read-only report of the package-verification state (integer/null/other shapes). NOTHING is changed here: verification
+# settings stay exactly as the emulator image has them.
+verifier_report before_install
 adb install -r diagnostic/app/build/outputs/apk/debug/app-debug.apk
+verifier_report after_install
+# EXPERIMENT (the only setup change, test-setup only): do not enable the service during the first seconds after install/emulator settling.
+# Runs 43909587430 and 43940253865 both lost the setting about 7 s after the write, shortly after the install. This
+# separates "time since install/boot settling" from "time since enable". It is NOT a liveness wait and does not touch
+# any assertion deadline.
+SETTLE_AFTER_INSTALL_S=45
+echo "EXPERIMENT settle_after_install_s=$SETTLE_AFTER_INSTALL_S uptime=$(dev_uptime) dev=$(dev_clock)" >&2
+sleep "$SETTLE_AFTER_INSTALL_S"
+echo "EXPERIMENT settle_done uptime=$(dev_uptime) dev=$(dev_clock)" >&2
 # Stop the package BEFORE enabling its service: Android's accessibility manager drops a force-stopped package's
 # services from the enabled list (AOSP AccessibilityManagerService.onHandleForceStop). Never force-stop after enabling.
 adb shell am force-stop "$PKG"
@@ -116,6 +128,7 @@ failure_diagnostics() {
  enabled_now >&2 || true
  timeout 5s adb shell settings get secure accessibility_enabled >&2 || true
  echo '--- diagnostics: probe now' >&2
+ verifier_report failure_time
  probe failure_time
  echo '--- diagnostics: dumpsys accessibility (first 150 lines)' >&2
  timeout 10s adb shell dumpsys accessibility 2>&1 | head -150 | cut -c1-240 >&2 || true
@@ -125,7 +138,7 @@ failure_diagnostics() {
  echo '--- diagnostics: bounded logcat (all buffers, fixed patterns, last 60 lines)' >&2
  bounded_logcat
  echo '--- diagnostics: system logcat bracketed by the probes' >&2
- bracket_logcat
+ bracket_logcat_sorted
  echo '--- diagnostics end' >&2
 }
 service_bound=false

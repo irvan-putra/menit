@@ -156,3 +156,42 @@ LOGCAT_PATTERN='Force stopping|force-stop|forceStop|UiAutomation|AccessibilityMa
 bounded_logcat() {
   timeout 15s adb logcat -b all -d -v threadtime 2>/dev/null | grep -E "${PKG//./\\.}|$LOGCAT_PATTERN" | tail -60 | cut -c1-240 | head -c 12000 >&2 || true
 }
+# ---- v8 experiment support (disposable synthetic emulator only) ----
+# Print only an integer, "null" or "other" for a Settings.Global key; never an arbitrary value.
+global_int_shape() {
+  local v; v=$(timeout 5s adb shell settings get global "$1" 2>/dev/null | tr -d '\r') || v="?"
+  case "$v" in "?") echo unreadable ;; null) echo null ;; ''|*[!0-9-]*) echo other ;; *) echo "$v" ;; esac
+}
+# Installer package name shape for $PKG: a dotted package name, "null" or "other". The installer is not private data.
+installer_shape() {
+  local v; v=$(timeout 8s adb shell pm list packages -i "$PKG" 2>/dev/null | tr -d '\r' | sed -n 's/.*installer=//p' | head -1) || v=""
+  case "$v" in ""|null) echo "${v:-none}" ;; *[!A-Za-z0-9._]*) echo other ;; *) echo "$v" ;; esac
+}
+verifier_report() {
+  echo "VERIFIER label=$1 verify_adb_installs=$(global_int_shape verifier_verify_adb_installs) package_verifier_enable=$(global_int_shape package_verifier_enable) package_verifier_user_consent=$(global_int_shape package_verifier_user_consent) installer=$(installer_shape)" >&2
+}
+
+# bracket_logcat_sorted: replaces the capture used in v7b after run 43940253865 showed that `logcat -b all` concatenates
+# buffers (not time-ordered) and the 150-line cap was used up by noise at the very start of the window. This version reads
+# only main,system,events,crash, filters noise, SORTS by device time, and prints relevant (priority) lines first, then the
+# rest of the window. Same bounds: <=150 lines, 240 chars per line, 20000 bytes combined with the header, stderr of the
+# filter stages suppressed so it cannot bypass the byte cap. Disposable synthetic emulator only; not typed CSV.
+BRACKET_NOISE_RE='AppsFilter|am_pss|Looper|ImeTracker|input_focus|SystemServerTiming|GoogleInputMethod|DNC-|DN-[0-9]|dvm_lock_sample|Long monitor contention|StylusManager|CompatibilityChangeReporter|CarrierSvcBindHelper|ImsResolver|DRM-|WifiNl80211|WifiNative|MediaPlayerList|AvrcpTarget|bt_stack|CallLogProvider|service_manager_slow|InputReader|am_uid_running|CarrierDefault|CarrierAction'
+BRACKET_PRIORITY_RE='ccessibility|SettingsProvider|Settings:|[Ss]ecure|[Vv]erif|PackageManager|PackageInstaller|package_|[Ii]nstaller|Play ?Protect|DevicePolic|clouddpc|[Aa]dmin|[Ff]orce|am_kill|am_proc_died|crash|vanipy|UiAutomation|[Rr]estricted|[Uu]nbind|[Dd]isabl|RoleService'
+bracket_logcat_sorted() {
+  local a="$PROBE_LAST_LISTED_DEV" b="$PROBE_FIRST_GONE_DEV" w
+  case "$a" in [0-2][0-9]:[0-5][0-9]:[0-5][0-9]) ;; *) echo "bracket: no sample saw the component listed" >&2; return 0 ;; esac
+  case "$b" in [0-2][0-9]:[0-5][0-9]:[0-5][0-9]) ;; *) echo "bracket: component never seen gone in a probe" >&2; return 0 ;; esac
+  if [[ "$b" < "$a" ]]; then echo "bracket: invalid (device clock went backwards or rolled over: $a then $b)" >&2; return 0; fi
+  w=$(timeout 15s adb logcat -b main,system,events,crash -d -v threadtime 2>/dev/null | awk -v a="$a" -v b="$b" '
+      function s(t,  p){ split(t,p,/[:.]/); return p[1]*3600+p[2]*60+p[3] }
+      { if (s($2) >= s(a)-1 && s($2) <= s(b)+2) print }' 2>/dev/null \
+    | grep -Ev "$BRACKET_NOISE_RE" 2>/dev/null | sort -s -k1,2 2>/dev/null | cut -c1-240 2>/dev/null) || w=""
+  {
+    echo "bracket (device clock, sorted by time, main/system/events/crash buffers): window $a-1s .. $b+2s"
+    echo "--- priority lines (max 60)"
+    printf '%s\n' "$w" | grep -E "$BRACKET_PRIORITY_RE" 2>/dev/null | head -60
+    echo "--- other lines in window, noise filtered (max 90)"
+    printf '%s\n' "$w" | grep -Ev "$BRACKET_PRIORITY_RE" 2>/dev/null | grep -v '^$' | head -90
+  } 2>/dev/null | head -n 153 | head -c 20000 >&2 || true
+}
