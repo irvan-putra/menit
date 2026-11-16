@@ -1,0 +1,27 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.vanipy.menit.diag'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.vanipy.menit.diag'
+        minSdk 26
+        targetSdk 34
+        versionCode = (project.findProperty('versionCode') ?: '1').toString().toInteger()
+        versionName = (project.findProperty('versionName') ?: '0.1.0-test').toString()
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    buildTypes {
+        release { minifyEnabled false }
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2' // test-only, not in the APK
+}

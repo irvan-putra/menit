@@ -1,0 +1,35 @@
+name: Menit Diagnostic build
+# Separate source candidate; host scenarios and debug build only. No artifact upload.
+on:
+  push:
+    branches: [main]
+    paths:
+      - diagnostic/**
+      - .github/workflows/build-diagnostic.yml
+      - README.md
+  pull_request:
+    paths:
+      - diagnostic/**
+      - .github/workflows/build-diagnostic.yml
+      - README.md
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Host scenarios on the real DiagStore (stubs, no Android runtime)
+        run: sh diagnostic/tools/host-test-stubs/run.sh
+      - name: Gradle 8.7 (checksum verified)
+        run: |
+          curl -sL -o /tmp/g.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          echo "544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d  /tmp/g.zip" | sha256sum -c -
+          unzip -q /tmp/g.zip -d /tmp
+      - name: Test and build diagnostic debug APK (no artifact upload)
+        run: /tmp/gradle-8.7/bin/gradle --no-daemon -p diagnostic :app:testDebugUnitTest :app:assembleDebug

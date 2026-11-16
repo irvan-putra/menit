@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="service_description">Reads only the header of Menit Diagnostic\'s own synthetic chat screens. It does not read any other app.</string>
+</resources>

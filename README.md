@@ -2,12 +2,18 @@
 
 An Android app that estimates how much of your phone time goes to AI.
 
-## Privacy
+## Privacy of the main Menit app
+
+For the main Menit APK:
 
 - The only permission is Usage access (PACKAGE_USAGE_STATS), granted by you in system settings.
 - No network permission, no upload, export or sharing feature, no content provider or service, and backups are turned off. The app stores nothing on the phone.
 - This is not a guarantee against everything: Android itself, screenshots you take, or a modified build could do things this code does not. Check the source.
 - No screen contents, notifications or messages are read.
+
+## Separate synthetic diagnostic
+
+The `diagnostic/` directory is a separate Android app (`com.vanipy.menit.diag`), not part of the main Menit APK. It is a source-reviewed, synthetic-only diagnostic candidate. Its source config scopes the optional Accessibility service to the diagnostic app's own synthetic screens; it also has optional Usage access. The diagnostic stores typed labels and times locally, disables backup and has no Internet permission. No real chat/header capture or runtime behavior has been verified on a device or emulator. No signed APK or release is published. See [the diagnostic notes](diagnostic/README.md).
 
 ## What it measures
 
@@ -28,9 +34,11 @@ The time each app was the one on screen, from Android's UsageStats events. Scree
 
 ## Build and CI
 
-`gradle :app:testDebugUnitTest :app:assembleDebug` (Gradle 8.7, JDK 17, Android SDK 34), or `tools/build-local.sh SDK_DIR VERSION` for a Gradle-free build. CI runs tests and builds a debug APK on pushes to `main` and pull requests. Those runs do not upload an APK. A manual workflow dispatch can upload a versioned debug APK artifact only when `build_test_artifact` is explicitly enabled. This is a test artifact, not a signed release; there is no release publication or stable signing key.
+The main app uses `gradle :app:testDebugUnitTest :app:assembleDebug` (Gradle 8.7, JDK 17, Android SDK 34), or `tools/build-local.sh SDK_DIR VERSION` for a Gradle-free build. CI runs tests and builds a debug APK on pushes to `main` and pull requests. Those runs do not upload an APK. A manual workflow dispatch can upload a versioned debug APK artifact only when `build_test_artifact` is explicitly enabled. This is a test artifact, not a signed release; there is no release publication or stable signing key.
 
-The app has no third-party runtime libraries. JUnit (EPL-1.0) and Robolectric (MIT) are test-only dependencies; the Android Gradle Plugin (Apache-2.0) is a build tool. They are not bundled in the APK.
+The separate diagnostic runs its real-store host scenarios and Gradle tests/build through [a second, artifact-free workflow](.github/workflows/build-diagnostic.yml). It does not change the main app's manifest, application ID or signing identity.
+
+The main Menit app has no third-party runtime libraries. JUnit (EPL-1.0) and Robolectric (MIT) are test-only dependencies; the Android Gradle Plugin (Apache-2.0) is a build tool. They are not bundled in its APK.
 
 ## Research notes
 

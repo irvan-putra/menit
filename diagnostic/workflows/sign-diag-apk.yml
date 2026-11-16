@@ -1,0 +1,113 @@
+# DRAFT REFERENCE ONLY. This file is intentionally outside the repository-root .github/workflows directory.
+# Do not activate until the dedicated key, its main-only GitHub Environment, and the pinned certificate digest are verified.
+# Re-check all paths if it is promoted to an active root workflow.
+name: sign diag apk
+# DRAFT, NOT ACTIVE until the dedicated Menit Diagnostic key exists, its secrets are in the menit-diag-signing Environment (main only), and EXPECTED_CERT_SHA256 is filled in.
+# Manual only. Builds, tests, signs with the Menit Diagnostic key (never another app's key) and uploads a workflow artifact.
+# It never creates a release, tag or commit. A reviewed person attaches the APK to a release by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_sign:
+        description: Type SIGN to build and sign a test APK with the Menit Diagnostic key
+        required: true
+        type: string
+      version_name:
+        description: Release version, for example 0.1.0 (must equal tools/icon-version.txt, which must match the icon art)
+        required: true
+        type: string
+      version_code:
+        description: Integer version code, higher than any APK already installed
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  sign:
+    if: ${{ inputs.confirm_sign == 'SIGN' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    # The four MENITDIAG_SIGNING_* secrets live in this Environment, restricted to the main branch (deployment branches: main only),
+    # not in repo-level secrets. A modified workflow dispatched from another branch cannot read them.
+    environment: menit-diag-signing
+    timeout-minutes: 25
+    env:
+      # Uppercase hex, no colons (matched against apksigner's digest uppercased)
+      EXPECTED_CERT_SHA256: REPLACE_WITH_DIAG_CERT_SHA256_AFTER_KEY_EXISTS
+      BUILD_TOOLS_VERSION: 34.0.0
+      V: ${{ inputs.version_name }}
+      C: ${{ inputs.version_code }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check version inputs and icon label
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Whole-string bash regex: a multi-line or padded value cannot match.
+          [[ $V =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "version_name must be X.Y.Z"; exit 1; }
+          [[ $C =~ ^[1-9][0-9]{0,8}$ ]] || { echo "version_code must be a positive integer"; exit 1; }
+          # The launcher icon shows the full version. The sidecar must hold exactly that version.
+          icon=$(< tools/icon-version.txt)
+          [[ $icon =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "tools/icon-version.txt must hold one X.Y.Z line"; exit 1; }
+          [[ $V == "$icon" ]] || { echo "version_name does not equal the icon version v$icon"; exit 1; }
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Host scenarios on the real DiagStore (stubs, no Android runtime)
+        run: sh tools/host-test-stubs/run.sh
+      - name: Gradle 8.7 (checksum verified)
+        run: |
+          curl -sL -o /tmp/g.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          echo "544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d  /tmp/g.zip" | sha256sum -c -
+          unzip -q /tmp/g.zip -d /tmp
+      - name: Test and build unsigned release
+        run: /tmp/gradle-8.7/bin/gradle --no-daemon "-PversionName=$V" "-PversionCode=$C" :app:testDebugUnitTest :app:assembleRelease
+      - name: Align, sign and verify
+        env:
+          MENITDIAG_SIGNING_KEYSTORE_BASE64: ${{ secrets.MENITDIAG_SIGNING_KEYSTORE_BASE64 }}
+          MENITDIAG_SIGNING_STORE_PASSWORD: ${{ secrets.MENITDIAG_SIGNING_STORE_PASSWORD }}
+          MENITDIAG_SIGNING_KEY_PASSWORD: ${{ secrets.MENITDIAG_SIGNING_KEY_PASSWORD }}
+          MENITDIAG_SIGNING_KEY_ALIAS: ${{ secrets.MENITDIAG_SIGNING_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          bt="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
+          [ -x "$bt/apksigner" ] && [ -x "$bt/zipalign" ] && [ -x "$bt/aapt2" ]
+          work=$(mktemp -d "$RUNNER_TEMP/menitdiag-sign.XXXXXX"); chmod 700 "$work"
+          trap 'rm -rf "$work"' EXIT
+          printf '%s' "$MENITDIAG_SIGNING_KEYSTORE_BASE64" | base64 -d > "$work/menitdiag.jks"; chmod 600 "$work/menitdiag.jks"
+          out="menit-diag-v${V}.apk"
+          "$bt/zipalign" -f -p 4 app/build/outputs/apk/release/app-release-unsigned.apk "$work/aligned.apk"
+          printf '%s\n%s\n' "$MENITDIAG_SIGNING_STORE_PASSWORD" "$MENITDIAG_SIGNING_KEY_PASSWORD" > "$work/pw"
+          "$bt/apksigner" sign --ks "$work/menitdiag.jks" --ks-key-alias "$MENITDIAG_SIGNING_KEY_ALIAS" \
+            --ks-pass "file:$work/pw" --key-pass "file:$work/pw" \
+            --v1-signing-enabled false --v2-signing-enabled true --v3-signing-enabled true \
+            --out "$out" "$work/aligned.apk"
+          rm -f "$work/pw" "$out.idsig"
+          "$bt/apksigner" verify --verbose --print-certs "$out" | tee verify.txt
+          got=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' verify.txt | tr a-f A-F)
+          [ "$got" = "$EXPECTED_CERT_SHA256" ]
+          "$bt/aapt2" dump badging "$out" | sed -n "1p;/uses-permission/p;/application-label:/p" | tee badging.txt
+          grep -q "name='com.vanipy.menit.diag'" badging.txt
+          grep -Fq "versionName='${V}'" badging.txt
+          grep -Fq "versionCode='${C}'" badging.txt
+          [ "$(grep -c uses-permission badging.txt)" = 1 ]
+          grep -q PACKAGE_USAGE_STATS badging.txt
+          ! grep -q INTERNET badging.txt
+          # exactly one service, and it must be the accessibility service bound by the system permission
+          "$bt/aapt2" dump xmltree --file AndroidManifest.xml "$out" > manifest.txt
+          [ "$(grep -c 'E: service ' manifest.txt)" = 1 ]
+          grep -q 'BIND_ACCESSIBILITY_SERVICE' manifest.txt
+          grep -q 'com.vanipy.menit.diag.DiagService' manifest.txt
+          [ "$(grep -c 'E: provider \|E: receiver ' manifest.txt)" = 0 ]
+          sha256sum "$out" | tee "$out.sha256"
+      - name: Upload signed test APK artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: menit-diag-signed-test
+          path: |
+            menit-diag-v*.apk
+            menit-diag-v*.apk.sha256
+            verify.txt
+            badging.txt
+            manifest.txt
+          if-no-files-found: error
