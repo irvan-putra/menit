@@ -9,6 +9,14 @@ PROBE_LOG="$T/probe.csv"
 # Fake adb for probe tests: serves ENABLED, A11Y and the fake log; no device needed.
 ENABLED=""; A11Y=0
 mkdir -p "$T/bin"; export FAKE
+REAL_CUT=$(command -v cut); export REAL_CUT
+CUT_CALLS="$T/cut-calls"; export CUT_CALLS
+cat > "$T/bin/cut" <<'X'
+#!/bin/sh
+printf 'args=%s noise=%s\n' "$*" "${CUT_NOISE:-unset}" >> "$CUT_CALLS"
+if [ "${CUT_NOISE:-0}" = 1 ]; then printf '%111s' 'CUT_DIAGNOSTIC' >&2; fi
+exec "$REAL_CUT" "$@"
+X
 cat > "$T/bin/adb" <<'X'
 #!/bin/sh
 case "$*" in
@@ -21,7 +29,7 @@ case "$*" in
   *) exit 1 ;;
 esac
 X
-chmod +x "$T/bin/adb"; PATH="$T/bin:$PATH"; DEVFILE="$T/devclock"; ADV=""; export ENABLED A11Y DEVTIME FAKELOGCAT DEVFILE ADV; DEVTIME=16:41:00; FAKELOGCAT="$T/logcat.txt"
+chmod +x "$T/bin/adb" "$T/bin/cut"; PATH="$T/bin:$PATH"; DEVFILE="$T/devclock"; ADV=""; export ENABLED A11Y DEVTIME FAKELOGCAT DEVFILE ADV; DEVTIME=16:41:00; FAKELOGCAT="$T/logcat.txt"
 PROBE_IN_WAIT=0
 # Replace the device read with a copy of the fake file; READ_DELAY simulates a slow device read.
 read_log() { [ -n "${READ_DELAY:-}" ] && sleep "$READ_DELAY"; cp "$FAKE" "$LOG"; }
@@ -149,10 +157,13 @@ echo "$out" | grep -q 'padded-in-end'; ok "bracket_logcat: 1 s pad kept" $? 0
 echo "$out" | grep -Eq 'before|after window'; ok "bracket_logcat: outside lines dropped" $? 1
 echo "$out" | grep -q 'AppsFilter'; ok "bracket_logcat: noise dropped" $? 1
 for i in $(seq 1 400); do echo "11-16 16:41:02.$((i%1000)) 1 1 I Tag: $(printf 'x%.0s' $(seq 1 300))"; done > "$FAKELOGCAT"
-out=$(set -o pipefail; bracket_logcat 2>&1); rc=$?
+CUT_NOISE=1; export CUT_NOISE; out=$(set -o pipefail; hash -r; command -v cut > "$T/cut-path"; bracket_logcat 2>&1); rc=$?; CUT_NOISE=0; export CUT_NOISE
 bytes=$(printf %s "$out" | wc -c | tr -d ' ')
 lines=$(printf '%s\n' "$out" | grep -c .)
+ok "bracket_logcat: fake cut emitted 111 stderr bytes" "$(grep -c 'args=-c1-240 noise=1' "$CUT_CALLS")" 1
+ok "bracket_logcat: fake cut path is used" "$(cat "$T/cut-path")" "$T/bin/cut"
 ok "bracket_logcat: pipefail tolerates bounded SIGPIPE" "$rc" 0
+ok "bracket_logcat: simulated cut diagnostic suppressed" "$(echo "$out" | grep -c CUT_DIAGNOSTIC)" 0
 ok "bracket_logcat: <=150 log lines plus header (measured $lines)" $([ "$lines" -le 151 ] && echo y || echo n) y
 ok "bracket_logcat: <=20000 bytes including header (measured $bytes)" $([ "$bytes" -le 20000 ] && echo y || echo n) y
 echo "$out" | grep -q '^bracket (device clock'; ok "bracket_logcat: header present" $? 0

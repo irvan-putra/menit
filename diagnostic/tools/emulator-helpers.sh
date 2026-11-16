@@ -137,9 +137,9 @@ bracket_logcat() {
     echo "bracket (device clock, widened to the bounds of the enabled-setting reads): earliest-possible-loss start $a, latest-gone end $b"
     timeout 15s adb logcat -b all -d -v threadtime 2>/dev/null | awk -v a="$a" -v b="$b" '
       function s(t,  p){ split(t,p,/[:.]/); return p[1]*3600+p[2]*60+p[3] }
-      { if (s($2) >= s(a)-1 && s($2) <= s(b)+1) print }' \
-      | grep -Ev 'AppsFilter|am_pss|Looper|ImeTracker|input_focus|SystemServerTiming|GoogleInputMethod' \
-      | head -150 | cut -c1-240
+      { if (s($2) >= s(a)-1 && s($2) <= s(b)+1) print }' 2>/dev/null \
+      | grep -Ev 'AppsFilter|am_pss|Looper|ImeTracker|input_focus|SystemServerTiming|GoogleInputMethod' 2>/dev/null \
+      | head -150 2>/dev/null | cut -c1-240 2>/dev/null
   } | head -c 20000 >&2 || true
 }
 # Bounded failure evidence. Typed row counts only after whole-file validation; logcat limited to fixed patterns, line
