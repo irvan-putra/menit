@@ -96,17 +96,49 @@ a11y_shape() {
 }
 # One timestamped line to stderr. Uses its own file so it cannot disturb $LOG baselines. Counts only after whole-file
 # validation; otherwise prints counts as "invalid" and never any row content.
+PROBE_LAST_LISTED_DEV=""; PROBE_FIRST_GONE_DEV=""
+# Device clock (same clock as logcat) HH:MM:SS and device uptime seconds; shape-checked, never free text.
+dev_clock() { local v; v=$(timeout 3s adb shell date +%H:%M:%S 2>/dev/null | tr -d '\r') || v=""; case "$v" in [0-2][0-9]:[0-5][0-9]:[0-5][0-9]) echo "$v" ;; *) echo unknown ;; esac; }
+dev_uptime() { local v; v=$(timeout 3s adb shell cat /proc/uptime 2>/dev/null | tr -d '\r' | cut -d' ' -f1) || v=""; case "$v" in ''|*[!0-9.]*) echo unknown ;; *) echo "$v" ;; esac; }
+# One timestamped line to stderr. Uses its own file so it cannot disturb $LOG baselines. Counts come only after
+# whole-file validation; otherwise "invalid" and never any row content. Call it directly (not in a subshell) so the
+# PROBE_*_DEV bracket variables persist. They record the device-clock time of the last probe that saw the component
+# listed and the first later probe that did not. That brackets the change between two samples; it is not the change time.
 probe() {
-  local label="$1" h="unreadable" n="unreadable"
+  local label="$1" h="unreadable" n="unreadable" en a11y dev up pre post
+  # Device clock immediately BEFORE and AFTER the enabled-setting read. The later reads below can be slow, so only
+  # these two stamps bound that read: pre is the lower bound of a "listed" sample, post the upper bound of a "gone" one.
+  pre=$(dev_clock); en=$(enabled_shape); post=$(dev_clock)
+  a11y=$(a11y_shape)
   if timeout 3s adb shell run-as "$PKG" cat files/diag-log.csv > "$PROBE_LOG" 2>/dev/null; then
     if log_valid "$PROBE_LOG"; then h=$(grep -c '^H,' "$PROBE_LOG" || true); n=$(grep -c '' "$PROBE_LOG" || true); else h=invalid; n=invalid; fi
   fi
-  echo "PROBE label=$label sec=$SECONDS utc=$(date -u +%H:%M:%S) enabled=$(enabled_shape) a11y=$(a11y_shape) H=$h rows=$n" >&2
+  dev=$(dev_clock); up=$(dev_uptime)
+  if [ "$en" = listed ]; then PROBE_LAST_LISTED_DEV="$pre"; PROBE_FIRST_GONE_DEV=""
+  elif [ -n "$PROBE_LAST_LISTED_DEV" ] && [ -z "$PROBE_FIRST_GONE_DEV" ] && [ "$en" != unreadable ]; then PROBE_FIRST_GONE_DEV="$post"; fi
+  echo "PROBE label=$label sec=$SECONDS utc=$(date -u +%H:%M:%S) dev=$dev up=$up enabled=$en a11y=$a11y H=$h rows=$n" >&2
 }
-# Informational no-UI sample (no dump runs): $1 label prefix, $2 seconds, probes about every 2 s
+# Informational no-UI sample (no dump runs): $1 label prefix, $2 seconds; back-to-back probes (each read takes ~1 s)
 probe_window() {
   local end=$((SECONDS + $2))
-  while (( SECONDS < end )); do probe "$1"; sleep 2; done
+  while (( SECONDS < end )); do probe "$1"; sleep 0.3; done
+}
+# Unfiltered-by-subject but noise-reduced system logcat for the bracket between the last probe that saw the component
+# listed and the first one that did not (device clock, 1 s padding). Fixed bounds: 150 lines, 240 chars/line, 20000 bytes.
+# Disposable synthetic emulator only. Prints nothing if no bracket was recorded.
+bracket_logcat() {
+  local a="$PROBE_LAST_LISTED_DEV" b="$PROBE_FIRST_GONE_DEV"
+  case "$a" in [0-2][0-9]:[0-5][0-9]:[0-5][0-9]) ;; *) echo "bracket: no sample saw the component listed" >&2; return 0 ;; esac
+  case "$b" in [0-2][0-9]:[0-5][0-9]:[0-5][0-9]) ;; *) echo "bracket: component never seen gone in a probe" >&2; return 0 ;; esac
+  # Same-day clock only: an unknown stamp (checked above) or a later stamp that is not >= the earlier one (midnight
+  # rollover or clock step) is never presented as a valid bracket.
+  if [[ "$b" < "$a" ]]; then echo "bracket: invalid (device clock went backwards or rolled over: $a then $b)" >&2; return 0; fi
+  echo "bracket (device clock, widened to the bounds of the enabled-setting reads): earliest-possible-loss start $a, latest-gone end $b" >&2
+  timeout 15s adb logcat -b all -d -v threadtime 2>/dev/null | awk -v a="$a" -v b="$b" '
+    function s(t,  p){ split(t,p,/[:.]/); return p[1]*3600+p[2]*60+p[3] }
+    { if (s($2) >= s(a)-1 && s($2) <= s(b)+1) print }' \
+    | grep -Ev 'AppsFilter|am_pss|Looper|ImeTracker|input_focus|SystemServerTiming|GoogleInputMethod' \
+    | head -150 | cut -c1-240 | head -c 20000 >&2 || true
 }
 # Bounded failure evidence. Typed row counts only after whole-file validation; logcat limited to fixed patterns, line
 # length and total bytes. No arbitrary content dump.
@@ -118,7 +150,7 @@ typed_counts() {
     echo "log: contains non-allowlisted shapes (not printed)" >&2
   fi
 }
-LOGCAT_PATTERN='Force stopping|force-stop|forceStop|UiAutomation|AccessibilityManagerService|AccessibilityServiceConnection|am_kill|am_proc_died|Process .* has died|am_crash|am_anr|PackageManager.*(removed|replaced)|Play Protect|VerifyApps'
+LOGCAT_PATTERN='Force stopping|force-stop|forceStop|UiAutomation|AccessibilityManagerService|AccessibilityServiceConnection|am_kill|am_proc_died|Process .* has died|am_crash|am_anr|PackageManager.*(removed|replaced)|Play Protect|VerifyApps|Skipping enabling service|disallowed by device admin|SettingsProvider|enabled_accessibility_services|accessibility_enabled|onUnbind|Unbinding|unbind'
 bounded_logcat() {
   timeout 15s adb logcat -b all -d -v threadtime 2>/dev/null | grep -E "${PKG//./\\.}|$LOGCAT_PATTERN" | tail -60 | cut -c1-240 | head -c 12000 >&2 || true
 }

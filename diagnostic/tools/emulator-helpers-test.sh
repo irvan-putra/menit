@@ -13,12 +13,15 @@ cat > "$T/bin/adb" <<'X'
 #!/bin/sh
 case "$*" in
   *"settings get secure enabled_accessibility_services"*) printf '%s\r\n' "$ENABLED" ;;
-  *"settings get secure accessibility_enabled"*) printf '%s\r\n' "$A11Y" ;;
+  *"settings get secure accessibility_enabled"*) [ -n "$ADV" ] && printf '%s' "$ADV" > "$DEVFILE"; printf '%s\r\n' "$A11Y" ;;
   *"cat files/diag-log.csv"*) cat "$FAKE" ;;
+  *"date +%H:%M:%S"*) if [ -s "$DEVFILE" ]; then printf '%s\r\n' "$(cat "$DEVFILE")"; else printf '%s\r\n' "$DEVTIME"; fi ;;
+  *"cat /proc/uptime"*) printf '123.45 99.00\r\n' ;;
+  *logcat*) cat "$FAKELOGCAT" ;;
   *) exit 1 ;;
 esac
 X
-chmod +x "$T/bin/adb"; PATH="$T/bin:$PATH"; export ENABLED A11Y
+chmod +x "$T/bin/adb"; PATH="$T/bin:$PATH"; DEVFILE="$T/devclock"; ADV=""; export ENABLED A11Y DEVTIME FAKELOGCAT DEVFILE ADV; DEVTIME=16:41:00; FAKELOGCAT="$T/logcat.txt"
 PROBE_IN_WAIT=0
 # Replace the device read with a copy of the fake file; READ_DELAY simulates a slow device read.
 read_log() { [ -n "${READ_DELAY:-}" ] && sleep "$READ_DELAY"; cp "$FAKE" "$LOG"; }
@@ -82,7 +85,7 @@ read_log() { [ -n "${READ_DELAY:-}" ] && sleep "$READ_DELAY"; cp "$FAKE" "$LOG";
 # ---- v6 probe tests ----
 read_log() { cp "$FAKE" "$LOG"; }
 printf 'H,5,10\nH,5,20\nO,5,100,UNRECOGNISED,-1\n' > "$FAKE"; ENABLED="$COMPONENT"; A11Y=1
-out=$(probe t1 2>&1 >/dev/null); echo "$out" | grep -Eq 'label=t1 sec=[0-9]+ utc=[0-9:]+ enabled=listed a11y=1 H=2 rows=3$'; ok "probe: shapes and counts" $? 0
+out=$(probe t1 2>&1 >/dev/null); echo "$out" | grep -Eq 'label=t1 sec=[0-9]+ utc=[0-9:]+ dev=16:41:00 up=123.45 enabled=listed a11y=1 H=2 rows=3$'; ok "probe: shapes and counts" $? 0
 ENABLED=null; A11Y=0; out=$(probe t2 2>&1 >/dev/null); echo "$out" | grep -q 'enabled=empty a11y=0'; ok "probe: null setting shows empty" $? 0
 ENABLED="com.other.secret/Thing"; out=$(probe t3 2>&1 >/dev/null); echo "$out" | grep -q 'enabled=other'; ok "probe: other value shape" $? 0
 echo "$out" | grep -q 'com.other'; ok "probe: raw settings value never printed" $? 1
@@ -102,4 +105,52 @@ wait_live_after_dump 2>/dev/null; ok "wait with probes: later H still releases" 
 PROBE_IN_WAIT=0
 # probe_window is bounded
 printf 'H,5,10\n' > "$FAKE"; s=$SECONDS; probe_window x 3 2>/dev/null; e=$((SECONDS-s)); ok "probe_window bounded" $([ $e -le 6 ] && echo y || echo n) y
+# ---- v7 bracket tests ----
+# Regression: a slow a11y/CSV read after the enabled read must not move the bracket start past the real loss.
+# Probe 1: enabled read at 16:41:00 (listed), then the a11y read "takes" the clock to 16:41:10. The setting actually
+# vanished at 16:41:03 (event below). Probe 2 reads gone at 16:41:10..16:41:10.
+printf 'H,5,10\n' > "$FAKE"; PROBE_LAST_LISTED_DEV=""; PROBE_FIRST_GONE_DEV=""
+printf '16:41:00' > "$DEVFILE"; ADV=16:41:10; ENABLED="$COMPONENT"; probe s1 2>/dev/null
+ENABLED=null; ADV=""; probe s2 2>/dev/null
+ok "slow read: listed lower bound is the pre-read clock" "$PROBE_LAST_LISTED_DEV" 16:41:00
+ok "slow read: gone upper bound is the post-read clock" "$PROBE_FIRST_GONE_DEV" 16:41:10
+{ echo "11-16 16:40:50.000 1 1 I Tag: early"; echo "11-16 16:41:03.000 519 546 I SettingsProvider: real-loss-event"; echo "11-16 16:41:30.000 1 1 I Tag: late"; } > "$FAKELOGCAT"
+out=$(bracket_logcat 2>&1); echo "$out" | grep -q real-loss-event; ok "slow read: event during the slow reads is retained" $? 0
+echo "$out" | grep -Eq 'Tag: (early|late)'; ok "slow read: outside events still dropped" $? 1
+# rollover / backwards clock is not a valid bracket
+PROBE_LAST_LISTED_DEV=23:59:58; PROBE_FIRST_GONE_DEV=00:00:02
+out=$(bracket_logcat 2>&1); echo "$out" | grep -q 'bracket: invalid'; ok "rollover is reported invalid" $? 0
+echo "$out" | grep -q 'SettingsProvider'; ok "rollover prints no log lines" $? 1
+# unknown clock never becomes a bracket
+printf 'unknown' > "$DEVFILE"; PROBE_LAST_LISTED_DEV=""; PROBE_FIRST_GONE_DEV=""; ENABLED="$COMPONENT"; ADV=""; probe u1 2>/dev/null
+ok "unknown clock: no listed bracket recorded as valid" "$(bracket_logcat 2>&1 | grep -c 'bracket (device')" 0
+rm -f "$DEVFILE"
+
+printf 'H,5,10\n' > "$FAKE"; PROBE_LAST_LISTED_DEV=""; PROBE_FIRST_GONE_DEV=""
+ENABLED="$COMPONENT"; DEVTIME=16:41:00; probe b1 2>/dev/null
+ENABLED="$COMPONENT"; DEVTIME=16:41:01; probe b2 2>/dev/null
+ENABLED=null; DEVTIME=16:41:03; probe b3 2>/dev/null
+ENABLED=null; DEVTIME=16:41:04; probe b4 2>/dev/null
+ok "bracket: last listed recorded" "$PROBE_LAST_LISTED_DEV" 16:41:01
+ok "bracket: first gone recorded (not overwritten)" "$PROBE_FIRST_GONE_DEV" 16:41:03
+ENABLED="$COMPONENT"; DEVTIME=16:41:05; probe b5 2>/dev/null
+ok "bracket: re-listed resets first-gone" "$PROBE_FIRST_GONE_DEV" ""
+ENABLED=unreadable; ENABLED=""; DEVTIME=16:41:06; probe b6 2>/dev/null; ok "bracket: empty after listed sets gone" "$PROBE_FIRST_GONE_DEV" 16:41:06
+PROBE_LAST_LISTED_DEV=16:41:01; PROBE_FIRST_GONE_DEV=16:41:03
+{ for i in 1 2 3 4 5; do echo "11-16 16:40:5$i.100 1 1 I Tag: before $i"; done
+  echo "11-16 16:41:00.500 1 1 I SomeTag: padded-in"
+  echo "11-16 16:41:02.000 519 546 I SettingsProvider: in-window event"
+  echo "11-16 16:41:02.100 519 546 I AppsFilter: noisy dropped"
+  echo "11-16 16:41:04.200 1 1 I Tag: padded-in-end"
+  echo "11-16 16:41:05.000 1 1 I Tag: after window"; } > "$FAKELOGCAT"
+out=$(bracket_logcat 2>&1)
+echo "$out" | grep -q 'in-window event'; ok "bracket_logcat: in-window line kept" $? 0
+echo "$out" | grep -q 'padded-in-end'; ok "bracket_logcat: 1 s pad kept" $? 0
+echo "$out" | grep -Eq 'before|after window'; ok "bracket_logcat: outside lines dropped" $? 1
+echo "$out" | grep -q 'AppsFilter'; ok "bracket_logcat: noise dropped" $? 1
+for i in $(seq 1 400); do echo "11-16 16:41:02.$((i%1000)) 1 1 I Tag: $(printf 'x%.0s' $(seq 1 300))"; done > "$FAKELOGCAT"
+out=$(bracket_logcat 2>&1); ok "bracket_logcat: <=150 lines + header" $([ "$(echo "$out" | grep -c .)" -le 151 ] && echo y || echo n) y
+ok "bracket_logcat: <=20000 bytes plus header" $([ "$(printf %s "$out" | wc -c)" -le 20200 ] && echo y || echo n) y
+PROBE_LAST_LISTED_DEV=""; out=$(bracket_logcat 2>&1); echo "$out" | grep -q 'no sample saw the component listed'; ok "bracket_logcat: no listed sample message" $? 0
+PROBE_LAST_LISTED_DEV=16:41:01; PROBE_FIRST_GONE_DEV=""; out=$(bracket_logcat 2>&1); echo "$out" | grep -q 'never seen gone'; ok "bracket_logcat: never gone message" $? 0
 [ "$fails" -eq 0 ] && echo "ALL HELPER TESTS PASS" || { echo "FAILS=$fails"; exit 1; }

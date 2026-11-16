@@ -124,6 +124,8 @@ failure_diagnostics() {
  if timeout 3s adb shell run-as "$PKG" cat files/diag-log.csv > "${LOG}.fail" 2>/dev/null; then typed_counts "${LOG}.fail"; else echo "log: unreadable" >&2; fi
  echo '--- diagnostics: bounded logcat (all buffers, fixed patterns, last 60 lines)' >&2
  bounded_logcat
+ echo '--- diagnostics: system logcat bracketed by the probes' >&2
+ bracket_logcat
  echo '--- diagnostics end' >&2
 }
 service_bound=false
@@ -141,9 +143,9 @@ if [ "$service_bound" != true ]; then
   exit 1
 fi
 
-# v6 informational probes (they gate nothing): state right after the first H, then ~8 s with NO UI dump running.
+# v7 informational probes (they gate nothing): state right after the first H, then ~20 s of back-to-back probes with NO UI dump running.
 probe first_h
-probe_window pre_dump_no_ui 8
+probe_window pre_dump_no_ui 20
 # Check the launch screen and capture it as visual UI evidence only.
 dump_ui
 contains_text 'Menit Diagnostic'
