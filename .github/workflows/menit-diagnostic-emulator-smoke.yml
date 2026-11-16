@@ -1,0 +1,47 @@
+# Reviewed manual account-free synthetic emulator test. One 40-minute public standard-runner execution only; no signing, release, real accounts, chats, or model inference.
+name: Menit Diagnostic synthetic emulator smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-emulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Gradle 8.7 (checksum verified)
+        run: |
+          curl -sL -o /tmp/g.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          echo "544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d  /tmp/g.zip" | sha256sum -c -
+          unzip -q /tmp/g.zip -d /tmp
+      - name: Unit tests and build debug APK
+        run: /tmp/gradle-8.7/bin/gradle --no-daemon -p diagnostic :app:testDebugUnitTest :app:assembleDebug
+      - name: Enable KVM on this disposable runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install, open and inspect only the synthetic diagnostic app
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -wipe-data
+          script: bash diagnostic/tools/emulator-smoke.sh
+      - name: Save synthetic screenshots for visual UI review
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: menit-diag-emulator-screenshots
+          path: ${{ runner.temp }}/menit-diag-emulator-evidence/*.png
+          if-no-files-found: warn
+          retention-days: 1
+          # Screenshots are synthetic UI evidence only; the typed event log is the service-behavior evidence.
