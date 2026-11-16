@@ -149,8 +149,13 @@ echo "$out" | grep -q 'padded-in-end'; ok "bracket_logcat: 1 s pad kept" $? 0
 echo "$out" | grep -Eq 'before|after window'; ok "bracket_logcat: outside lines dropped" $? 1
 echo "$out" | grep -q 'AppsFilter'; ok "bracket_logcat: noise dropped" $? 1
 for i in $(seq 1 400); do echo "11-16 16:41:02.$((i%1000)) 1 1 I Tag: $(printf 'x%.0s' $(seq 1 300))"; done > "$FAKELOGCAT"
-out=$(bracket_logcat 2>&1); ok "bracket_logcat: <=150 lines + header" $([ "$(echo "$out" | grep -c .)" -le 151 ] && echo y || echo n) y
-ok "bracket_logcat: <=20000 bytes plus header" $([ "$(printf %s "$out" | wc -c)" -le 20200 ] && echo y || echo n) y
+out=$(set -o pipefail; bracket_logcat 2>&1); rc=$?
+bytes=$(printf %s "$out" | wc -c | tr -d ' ')
+lines=$(printf '%s\n' "$out" | grep -c .)
+ok "bracket_logcat: pipefail tolerates bounded SIGPIPE" "$rc" 0
+ok "bracket_logcat: <=150 log lines plus header (measured $lines)" $([ "$lines" -le 151 ] && echo y || echo n) y
+ok "bracket_logcat: <=20000 bytes including header (measured $bytes)" $([ "$bytes" -le 20000 ] && echo y || echo n) y
+echo "$out" | grep -q '^bracket (device clock'; ok "bracket_logcat: header present" $? 0
 PROBE_LAST_LISTED_DEV=""; out=$(bracket_logcat 2>&1); echo "$out" | grep -q 'no sample saw the component listed'; ok "bracket_logcat: no listed sample message" $? 0
 PROBE_LAST_LISTED_DEV=16:41:01; PROBE_FIRST_GONE_DEV=""; out=$(bracket_logcat 2>&1); echo "$out" | grep -q 'never seen gone'; ok "bracket_logcat: never gone message" $? 0
 [ "$fails" -eq 0 ] && echo "ALL HELPER TESTS PASS" || { echo "FAILS=$fails"; exit 1; }

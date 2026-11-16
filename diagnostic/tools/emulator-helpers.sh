@@ -133,12 +133,14 @@ bracket_logcat() {
   # Same-day clock only: an unknown stamp (checked above) or a later stamp that is not >= the earlier one (midnight
   # rollover or clock step) is never presented as a valid bracket.
   if [[ "$b" < "$a" ]]; then echo "bracket: invalid (device clock went backwards or rolled over: $a then $b)" >&2; return 0; fi
-  echo "bracket (device clock, widened to the bounds of the enabled-setting reads): earliest-possible-loss start $a, latest-gone end $b" >&2
-  timeout 15s adb logcat -b all -d -v threadtime 2>/dev/null | awk -v a="$a" -v b="$b" '
-    function s(t,  p){ split(t,p,/[:.]/); return p[1]*3600+p[2]*60+p[3] }
-    { if (s($2) >= s(a)-1 && s($2) <= s(b)+1) print }' \
-    | grep -Ev 'AppsFilter|am_pss|Looper|ImeTracker|input_focus|SystemServerTiming|GoogleInputMethod' \
-    | head -150 | cut -c1-240 | head -c 20000 >&2 || true
+  {
+    echo "bracket (device clock, widened to the bounds of the enabled-setting reads): earliest-possible-loss start $a, latest-gone end $b"
+    timeout 15s adb logcat -b all -d -v threadtime 2>/dev/null | awk -v a="$a" -v b="$b" '
+      function s(t,  p){ split(t,p,/[:.]/); return p[1]*3600+p[2]*60+p[3] }
+      { if (s($2) >= s(a)-1 && s($2) <= s(b)+1) print }' \
+      | grep -Ev 'AppsFilter|am_pss|Looper|ImeTracker|input_focus|SystemServerTiming|GoogleInputMethod' \
+      | head -150 | cut -c1-240
+  } | head -c 20000 >&2 || true
 }
 # Bounded failure evidence. Typed row counts only after whole-file validation; logcat limited to fixed patterns, line
 # length and total bytes. No arbitrary content dump.
