@@ -23,7 +23,7 @@ The time each app was the one on screen, from Android's UsageStats events. Scree
 
 - Automatic updates, so test builds do not need manual installs.
 - User-editable AI app list.
-- Telling AI websites or bots apart inside mixed apps. Whether this is feasible has not been researched. Candidates need a clear opt-in, minimal data (never raw screen content) and a check against Android's restricted settings for sideloaded apps.
+- Telling AI websites or bots apart inside mixed apps. This remains unbuilt; see [exploratory measurement options and limits](docs/research/measuring-ai-use-inside-mixed-apps.md). Candidates need a clear opt-in, minimal data (never raw screen content) and a check against Android's restricted settings for sideloaded apps.
 - A stable signing key per app, so updates install over earlier builds.
 
 ## Build and CI
