@@ -11,10 +11,14 @@ mkdir -p "$EVIDENCE_DIR"
 adb wait-for-device
 adb shell pm clear "$PKG" >/dev/null 2>&1 || true
 adb install -r diagnostic/app/build/outputs/apk/debug/app-debug.apk
+# Stop the package BEFORE enabling its service: Android's accessibility manager drops a force-stopped package's
+# services from the enabled list (AOSP AccessibilityManagerService.onHandleForceStop). Never force-stop after enabling.
+adb shell am force-stop "$PKG"
 # Enable the diagnostic reader only on the disposable emulator. Settings alone is not evidence of a bound service.
 adb shell settings put secure enabled_accessibility_services "$COMPONENT"
 adb shell settings put secure accessibility_enabled 1
-adb shell am force-stop "$PKG"
+enabled_now() { timeout 5s adb shell settings get secure enabled_accessibility_services 2>&1 | tr -d '\r' || true; }
+case "$(enabled_now)" in *"$COMPONENT"*) ;; *) echo "Enabled-services setting does not contain $COMPONENT right after writing it." >&2; ;; esac
 adb shell am start -n "$PKG/.DiagActivity" >/dev/null
 
 read_log() { adb shell run-as "$PKG" cat files/diag-log.csv > "$LOG"; }
@@ -93,6 +97,21 @@ assert_new_label() {
 
 # A heartbeat is appended only by DiagService.onServiceConnected. Bound both the
 # deadline and each read: secure-settings enablement alone is not proof of binding.
+# Bounded, synthetic-only failure diagnostics. Disposable emulator with only this synthetic app; no private data exists here.
+failure_diagnostics() {
+ echo '--- diagnostics: enabled services / accessibility_enabled' >&2
+ enabled_now >&2 || true
+ timeout 5s adb shell settings get secure accessibility_enabled >&2 || true
+ echo '--- diagnostics: dumpsys accessibility (first 60 lines)' >&2
+ timeout 10s adb shell dumpsys accessibility 2>&1 | head -60 >&2 || true
+ echo '--- diagnostics: run-as listing and read error' >&2
+ timeout 5s adb shell run-as "$PKG" ls -l files 2>&1 | head -10 >&2 || true
+ timeout 5s adb shell run-as "$PKG" cat files/diag-log.csv 2>&1 >/dev/null | head -3 >&2 || true
+ echo '--- diagnostics: bounded logcat (accessibility manager, crashes, this package)' >&2
+ timeout 10s adb logcat -d -t 400 -s AccessibilityManagerService:V AndroidRuntime:E DEBUG:E 2>&1 | tail -40 >&2 || true
+ timeout 10s adb logcat -d -t 2000 2>&1 | grep -F "$PKG" | tail -30 >&2 || true
+ echo '--- diagnostics end' >&2
+}
 service_bound=false
 heartbeat_deadline=$((SECONDS + 30))
 while (( SECONDS < heartbeat_deadline )); do
@@ -102,6 +121,8 @@ while (( SECONDS < heartbeat_deadline )); do
   sleep 0.5
 done
 if [ "$service_bound" != true ]; then
+ case "$(enabled_now)" in *"$COMPONENT"*) echo 'Component is still listed as enabled.' >&2 ;; *) echo 'Component is no longer listed as enabled: something removed it after it was written.' >&2 ;; esac
+ failure_diagnostics
   echo 'No diagnostic-service heartbeat within the bounded 30-second poll; service was not proven bound.' >&2
   exit 1
 fi
