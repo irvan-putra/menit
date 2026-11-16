@@ -12,6 +12,17 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Verify reviewed synthetic smoke sources and run host regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          sha256sum --check <<'HASHES'
+          16968943fe7615963db4f73dcb2e6a0ff69570ca0e0d3291dfdb5b44c665e2bb  diagnostic/tools/emulator-smoke.sh
+          f73b0926e1f1cb08c25e3c3da3d0a83531491fe8c5a524cab5714ba86d163ac1  diagnostic/tools/emulator-helpers.sh
+          1c1d16fe43eff7522edd921c91c599e015fa82ac07b833088c19a134e1c73914  diagnostic/tools/emulator-helpers-test.sh
+          HASHES
+          bash diagnostic/tools/emulator-helpers-test.sh
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with: { distribution: temurin, java-version: '17' }
       - name: Gradle 8.7 (checksum verified)
