@@ -1,0 +1,83 @@
+name: verify signing key
+# Manual, no-artifact check that the private signing key can be loaded from repository secrets.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Load the Menit signing key without signing an APK
+        env:
+          MENIT_SIGNING_KEYSTORE_BASE64: ${{ secrets.MENIT_SIGNING_KEYSTORE_BASE64 }}
+          MENIT_SIGNING_STORE_PASSWORD: ${{ secrets.MENIT_SIGNING_STORE_PASSWORD }}
+          MENIT_SIGNING_KEY_PASSWORD: ${{ secrets.MENIT_SIGNING_KEY_PASSWORD }}
+          MENIT_SIGNING_KEY_ALIAS: ${{ secrets.MENIT_SIGNING_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d "$RUNNER_TEMP/menit-key-check.XXXXXX")
+          chmod 700 "$work"
+          trap 'rm -rf "$work"' EXIT
+          python3 - "$work/menit.jks" <<'PY'
+          import base64, os, pathlib, sys
+          encoded = os.environ.get("MENIT_SIGNING_KEYSTORE_BASE64", "")
+          if not encoded:
+              raise SystemExit("keystore secret is missing")
+          try:
+              raw = base64.b64decode(encoded, validate=True)
+          except Exception:
+              raise SystemExit("keystore secret is not valid base64")
+          if not raw:
+              raise SystemExit("decoded keystore is empty")
+          p = pathlib.Path(sys.argv[1])
+          p.write_bytes(raw)
+          p.chmod(0o600)
+          PY
+          cat > "$work/VerifyKey.java" <<'JAVA'
+          import java.io.FileInputStream;
+          import java.security.Key;
+          import java.security.KeyStore;
+          import java.security.MessageDigest;
+          import java.security.PrivateKey;
+          import java.security.cert.Certificate;
+          import java.util.HexFormat;
+
+          public class VerifyKey {
+            public static void main(String[] args) {
+              try {
+                String path = args[0];
+                String alias = System.getenv("MENIT_SIGNING_KEY_ALIAS");
+                char[] storePass = System.getenv("MENIT_SIGNING_STORE_PASSWORD").toCharArray();
+                char[] keyPass = System.getenv("MENIT_SIGNING_KEY_PASSWORD").toCharArray();
+                if (alias == null || alias.isBlank()) throw new IllegalStateException();
+                KeyStore ks = KeyStore.getInstance("JKS");
+                try (FileInputStream in = new FileInputStream(path)) { ks.load(in, storePass); }
+                if (!ks.containsAlias(alias) || !ks.isKeyEntry(alias)) throw new IllegalStateException();
+                Key key = ks.getKey(alias, keyPass);
+                if (!(key instanceof PrivateKey)) throw new IllegalStateException();
+                Certificate cert = ks.getCertificate(alias);
+                if (cert == null) throw new IllegalStateException();
+                String fingerprint = HexFormat.of().withUpperCase().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(cert.getEncoded()));
+                String expected = "482E19A17C728EDBDF41479131A58722E0F0E80903F83E204AE402DF6B25DAFA";
+                if (!expected.equals(fingerprint)) throw new IllegalStateException();
+                System.out.println("Signing key loaded and certificate identity matches; alias=" + alias
+                    + "; algorithm=" + key.getAlgorithm() + "; certificate SHA-256=" + fingerprint);
+                java.util.Arrays.fill(storePass, '\0');
+                java.util.Arrays.fill(keyPass, '\0');
+              } catch (Exception e) {
+                System.err.println("Signing key verification failed (" + e.getClass().getSimpleName() + ")");
+                System.exit(1);
+              }
+            }
+          }
+          JAVA
+          javac -d "$work" "$work/VerifyKey.java"
+          java -cp "$work" VerifyKey "$work/menit.jks"
