@@ -1,0 +1,41 @@
+name: build
+# Pushes and pull requests test/build only. A manual dispatch can optionally upload a test APK artifact.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_test_artifact:
+        description: Upload a versioned debug APK artifact for testing
+        required: true
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Gradle 8.7 (checksum verified)
+        run: |
+          curl -sL -o /tmp/g.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          echo "544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d  /tmp/g.zip" | sha256sum -c -
+          unzip -q /tmp/g.zip -d /tmp
+      - name: Test and build
+        run: /tmp/gradle-8.7/bin/gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Name the APK with its version
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_test_artifact }}
+        run: |
+          V=$(sed -n "s/.*versionName = .*'\([0-9][^']*\)'.*/\1/p" app/build.gradle | head -1)
+          cp app/build/outputs/apk/debug/app-debug.apk "menit-v${V}.apk"
+      - name: Upload test APK artifact
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_test_artifact }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with: { name: menit-apk, path: 'menit-v*.apk' }
