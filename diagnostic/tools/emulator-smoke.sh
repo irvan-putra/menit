@@ -11,23 +11,24 @@ mkdir -p "$EVIDENCE_DIR"
 . "$(dirname "${BASH_SOURCE[0]}")/emulator-helpers.sh"
 
 adb wait-for-device
+# This experiment requires the workflow's wiped disposable AVD to have no prior diagnostic install.
+# Fail closed before pm clear/install if the package is already present; don't reuse/clear an old instance.
+installed_package=$(adb shell pm list packages --user 0 "$PKG" | tr -d '\r')
+if [ -n "$installed_package" ]; then
+  echo "Fresh emulator prerequisite failed: $PKG is already installed; refusing to clear or replace it." >&2
+  exit 1
+fi
 adb shell pm clear "$PKG" >/dev/null 2>&1 || true
 # Read-only report of the package-verification state (integer/null/other shapes). NOTHING is changed here: verification
 # settings stay exactly as the emulator image has them.
 verifier_report before_install
 adb install -r diagnostic/app/build/outputs/apk/debug/app-debug.apk
 verifier_report after_install
-# EXPERIMENT (the only setup change, test-setup only): do not enable the service during the first seconds after install/emulator settling.
-# Runs 43909587430 and 43940253865 both lost the setting about 7 s after the write, shortly after the install. This
-# separates "time since install/boot settling" from "time since enable". It is NOT a liveness wait and does not touch
-# any assertion deadline.
-SETTLE_AFTER_INSTALL_S=45
-echo "EXPERIMENT settle_after_install_s=$SETTLE_AFTER_INSTALL_S uptime=$(dev_uptime) dev=$(dev_clock)" >&2
-sleep "$SETTLE_AFTER_INSTALL_S"
-echo "EXPERIMENT settle_done uptime=$(dev_uptime) dev=$(dev_clock)" >&2
-# Stop the package BEFORE enabling its service: Android's accessibility manager drops a force-stopped package's
-# services from the enabled list (AOSP AccessibilityManagerService.onHandleForceStop). Never force-stop after enabling.
-adb shell am force-stop "$PKG"
+# No force-stop anywhere. `am force-stop` sends a package-restarted broadcast that the accessibility manager handles
+# asynchronously (AOSP android-14.0.0_r1 AccessibilityManagerService PackageMonitor.onHandleForceStop removes a
+# force-stopped package's services from the enabled list and persists the shorter setting). If that broadcast is handled
+# after the enable write, the setting is cleared. After `pm clear` and a fresh install the package is not running, so the
+# force-stop is not needed.
 # Enable the diagnostic reader only on the disposable emulator. Settings alone is not evidence of a bound service.
 adb shell settings put secure enabled_accessibility_services "$COMPONENT"
 adb shell settings put secure accessibility_enabled 1
