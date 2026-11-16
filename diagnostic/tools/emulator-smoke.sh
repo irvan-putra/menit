@@ -26,6 +26,7 @@ adb shell am start -n "$PKG/.DiagActivity" >/dev/null
 dump_ui() {
   adb shell uiautomator dump --compressed /sdcard/menit-diag-ui.xml >/dev/null
   adb exec-out cat /sdcard/menit-diag-ui.xml > "$TMP_XML"
+  probe after_dump_ui
 }
 contains_text() {
   python3 - "$TMP_XML" "$1" <<'PY'
@@ -114,14 +115,15 @@ failure_diagnostics() {
  echo '--- diagnostics: enabled services / accessibility_enabled' >&2
  enabled_now >&2 || true
  timeout 5s adb shell settings get secure accessibility_enabled >&2 || true
- echo '--- diagnostics: dumpsys accessibility (first 60 lines)' >&2
- timeout 10s adb shell dumpsys accessibility 2>&1 | head -60 >&2 || true
- echo '--- diagnostics: run-as listing and read error' >&2
+ echo '--- diagnostics: probe now' >&2
+ probe failure_time
+ echo '--- diagnostics: dumpsys accessibility (first 150 lines)' >&2
+ timeout 10s adb shell dumpsys accessibility 2>&1 | head -150 | cut -c1-240 >&2 || true
+ echo '--- diagnostics: run-as listing and typed row counts' >&2
  timeout 5s adb shell run-as "$PKG" ls -l files 2>&1 | head -10 >&2 || true
- timeout 5s adb shell run-as "$PKG" cat files/diag-log.csv 2>&1 >/dev/null | head -3 >&2 || true
- echo '--- diagnostics: bounded logcat (accessibility manager, crashes, this package)' >&2
- timeout 10s adb logcat -d -t 400 -s AccessibilityManagerService:V AndroidRuntime:E DEBUG:E 2>&1 | tail -40 >&2 || true
- timeout 10s adb logcat -d -t 2000 2>&1 | grep -F "$PKG" | tail -30 >&2 || true
+ if timeout 3s adb shell run-as "$PKG" cat files/diag-log.csv > "${LOG}.fail" 2>/dev/null; then typed_counts "${LOG}.fail"; else echo "log: unreadable" >&2; fi
+ echo '--- diagnostics: bounded logcat (all buffers, fixed patterns, last 60 lines)' >&2
+ bounded_logcat
  echo '--- diagnostics end' >&2
 }
 service_bound=false
@@ -139,12 +141,16 @@ if [ "$service_bound" != true ]; then
   exit 1
 fi
 
+# v6 informational probes (they gate nothing): state right after the first H, then ~8 s with NO UI dump running.
+probe first_h
+probe_window pre_dump_no_ui 8
 # Check the launch screen and capture it as visual UI evidence only.
 dump_ui
 contains_text 'Menit Diagnostic'
 contains_text 'Synthetic test only.'
 contains_text 'Reader: ON'
 adb exec-out screencap -p > "$EVIDENCE_DIR/home.png"
+probe after_screencap
 # The home dump above suppressed the service. Before the Settings negative sample, require fresh post-dump liveness.
 wait_live_after_dump || { echo "Diagnostic service wrote no new heartbeat within ${LIVE_WAIT_S} s after the last home dump; the Settings negative check would be meaningless." >&2; failure_diagnostics; exit 1; }
 

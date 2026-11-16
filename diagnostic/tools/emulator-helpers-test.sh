@@ -3,7 +3,23 @@
 set -u
 cd "$(dirname "$0")"
 T=$(mktemp -d); export PKG=com.vanipy.menit.diag LOG="$T/log.csv"; FAKE="$T/fake.csv"
+COMPONENT=com.vanipy.menit.diag/com.vanipy.menit.diag.DiagService
 . ./emulator-helpers.sh
+PROBE_LOG="$T/probe.csv"
+# Fake adb for probe tests: serves ENABLED, A11Y and the fake log; no device needed.
+ENABLED=""; A11Y=0
+mkdir -p "$T/bin"; export FAKE
+cat > "$T/bin/adb" <<'X'
+#!/bin/sh
+case "$*" in
+  *"settings get secure enabled_accessibility_services"*) printf '%s\r\n' "$ENABLED" ;;
+  *"settings get secure accessibility_enabled"*) printf '%s\r\n' "$A11Y" ;;
+  *"cat files/diag-log.csv"*) cat "$FAKE" ;;
+  *) exit 1 ;;
+esac
+X
+chmod +x "$T/bin/adb"; PATH="$T/bin:$PATH"; export ENABLED A11Y
+PROBE_IN_WAIT=0
 # Replace the device read with a copy of the fake file; READ_DELAY simulates a slow device read.
 read_log() { [ -n "${READ_DELAY:-}" ] && sleep "$READ_DELAY"; cp "$FAKE" "$LOG"; }
 fails=0; ok() { if [ "$2" = "$3" ]; then echo "PASS $1"; else echo "FAIL $1 (got $2, want $3)"; fails=$((fails+1)); fi; }
@@ -62,4 +78,28 @@ nbase; ( sleep 1; echo "H,5,60" >> "$FAKE" ) & focus_ok() { return 1; }
 settings_negative_sample; ok "settings: lost focus fails" $? 3; wait; focus_ok() { return 0; }
 read_log() { : > "$LOG"; return 1; }; settings_negative_sample; ok "settings: no baseline read is inconclusive" $? 1
 read_log() { [ -n "${READ_DELAY:-}" ] && sleep "$READ_DELAY"; cp "$FAKE" "$LOG"; }
+
+# ---- v6 probe tests ----
+read_log() { cp "$FAKE" "$LOG"; }
+printf 'H,5,10\nH,5,20\nO,5,100,UNRECOGNISED,-1\n' > "$FAKE"; ENABLED="$COMPONENT"; A11Y=1
+out=$(probe t1 2>&1 >/dev/null); echo "$out" | grep -Eq 'label=t1 sec=[0-9]+ utc=[0-9:]+ enabled=listed a11y=1 H=2 rows=3$'; ok "probe: shapes and counts" $? 0
+ENABLED=null; A11Y=0; out=$(probe t2 2>&1 >/dev/null); echo "$out" | grep -q 'enabled=empty a11y=0'; ok "probe: null setting shows empty" $? 0
+ENABLED="com.other.secret/Thing"; out=$(probe t3 2>&1 >/dev/null); echo "$out" | grep -q 'enabled=other'; ok "probe: other value shape" $? 0
+echo "$out" | grep -q 'com.other'; ok "probe: raw settings value never printed" $? 1
+printf 'H,5,10\nprivate free text here\n' > "$FAKE"; out=$(probe t4 2>&1 >/dev/null)
+echo "$out" | grep -q 'H=invalid rows=invalid'; ok "probe: non-allowlisted log gives invalid" $? 0
+echo "$out" | grep -q 'private'; ok "probe: invalid log content never printed" $? 1
+out=$(typed_counts "$FAKE" 2>&1); echo "$out" | grep -q 'not printed'; ok "typed_counts: invalid log hidden" $? 0
+echo "$out" | grep -q 'private'; ok "typed_counts: no content leak" $? 1
+printf 'S,1,2,3\nH,1,2\nC,1,2,3,4,5\nO,1,2,UNRECOGNISED,-1\n' > "$FAKE"; out=$(typed_counts "$FAKE" 2>&1)
+[ "$out" = "log typed rows: S=1 H=1 C=1 O=1 FS=0 F=0" ]; ok "typed_counts: valid counts" $? 0
+: > "$FAKE"; out=$(typed_counts "$FAKE" 2>&1); echo "$out" | grep -q 'empty or unreadable'; ok "typed_counts: empty" $? 0
+# probes inside the wait loop must not change its outcome or baseline logic
+PROBE_IN_WAIT=1
+printf 'H,5,10\n' > "$FAKE"; wait_live_after_dump 2>/dev/null; ok "wait with probes: stale H still fails" $? 1
+printf 'H,5,10\n' > "$FAKE"; ( sleep 1; echo "H,5,99" >> "$FAKE" ) &
+wait_live_after_dump 2>/dev/null; ok "wait with probes: later H still releases" $? 0; wait
+PROBE_IN_WAIT=0
+# probe_window is bounded
+printf 'H,5,10\n' > "$FAKE"; s=$SECONDS; probe_window x 3 2>/dev/null; e=$((SECONDS-s)); ok "probe_window bounded" $([ $e -le 6 ] && echo y || echo n) y
 [ "$fails" -eq 0 ] && echo "ALL HELPER TESTS PASS" || { echo "FAILS=$fails"; exit 1; }

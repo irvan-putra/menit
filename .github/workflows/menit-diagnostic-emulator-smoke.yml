@@ -18,9 +18,9 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           sha256sum --check <<'HASHES'
-          16968943fe7615963db4f73dcb2e6a0ff69570ca0e0d3291dfdb5b44c665e2bb  diagnostic/tools/emulator-smoke.sh
-          f73b0926e1f1cb08c25e3c3da3d0a83531491fe8c5a524cab5714ba86d163ac1  diagnostic/tools/emulator-helpers.sh
-          1c1d16fe43eff7522edd921c91c599e015fa82ac07b833088c19a134e1c73914  diagnostic/tools/emulator-helpers-test.sh
+          8c76c05bd18fa927e664b6aa89bf3c63d224d192153ad93906b0bce7ff107593  diagnostic/tools/emulator-smoke.sh
+          f68c23bc79bcdc1dd5add13f8a183f7ee5f158e8fe92c4a4922b390fea1f2ec0  diagnostic/tools/emulator-helpers.sh
+          26bf1c422caa1222126ef0caec9c5ed49e4a1001248eee58121a1d225c7d0a9a  diagnostic/tools/emulator-helpers-test.sh
           HASHES
           bash diagnostic/tools/emulator-helpers-test.sh
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4

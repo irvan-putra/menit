@@ -16,9 +16,10 @@ new_o_rows() { awk -F, -v n="$1" 'BEGIN{c=0} /^O,/{c++; if(c>n) print}' "$LOG"; 
 # A later H row (onServiceConnected writes one, then one every 5 s) proves the service is alive after the dump. It is
 # liveness evidence, not proof of which rebind path was taken. Returns 1 after LIVE_WAIT_S wall-clock seconds.
 wait_live_after_dump() {
-  local hb="" deadline
+  local hb="" deadline lastp=-1
   deadline=$((SECONDS + LIVE_WAIT_S))
   while (( SECONDS < deadline )); do
+    if [ "${PROBE_IN_WAIT:-1}" = 1 ] && (( SECONDS != lastp )); then lastp=$SECONDS; probe wait_live; fi   # informational only
     if read_log 2>/dev/null; then
       if [ -z "$hb" ]; then hb=$(count_rows H)            # first SUCCESSFUL read after the dump is the baseline
       elif [ "$(count_rows H)" -gt "$hb" ]; then return 0; fi
@@ -77,4 +78,47 @@ settings_negative_sample() {
   done
   focus_ok || return 3
   [ "$last_ok" = 1 ] && [ "$grown" = 1 ]
+}
+
+# ---- v6 diagnostic-only probes (informational; never gate anything, never print log contents) ----
+PROBE_LOG=${PROBE_LOG:-${LOG}.probe}
+ROW_ALLOW_RE='^(S,-?[0-9]+,[0-9]+,[0-9]+|H,-?[0-9]+,[0-9]+|C,-?[0-9]+,[0-9]+,[0-9]+,[0-9]+,[0-9]+|FS,-?[0-9]+,[0-9]+|F,-?[0-9]+,[0-9]+,[0-9]+|O,-?[0-9]+,[0-9]+,(ALLOWLISTED,1|NOT_ALLOWLISTED,-1|UNRECOGNISED,-1))$'
+# 0 only if every line of file $1 is an allowlisted typed row (empty file is valid)
+log_valid() { ! grep -Evq "$ROW_ALLOW_RE" "$1"; }
+# Shape only, never the raw value: listed | empty | other
+enabled_shape() {
+  local v; v=$(timeout 5s adb shell settings get secure enabled_accessibility_services 2>/dev/null | tr -d '\r') || v="?"
+  case "$v" in *"${COMPONENT:-@@none@@}"*) echo listed ;; ""|null) echo empty ;; "?") echo unreadable ;; *) echo other ;; esac
+}
+a11y_shape() {
+  local v; v=$(timeout 5s adb shell settings get secure accessibility_enabled 2>/dev/null | tr -d '\r') || v="?"
+  case "$v" in 0|1|null) echo "$v" ;; *) echo other ;; esac
+}
+# One timestamped line to stderr. Uses its own file so it cannot disturb $LOG baselines. Counts only after whole-file
+# validation; otherwise prints counts as "invalid" and never any row content.
+probe() {
+  local label="$1" h="unreadable" n="unreadable"
+  if timeout 3s adb shell run-as "$PKG" cat files/diag-log.csv > "$PROBE_LOG" 2>/dev/null; then
+    if log_valid "$PROBE_LOG"; then h=$(grep -c '^H,' "$PROBE_LOG" || true); n=$(grep -c '' "$PROBE_LOG" || true); else h=invalid; n=invalid; fi
+  fi
+  echo "PROBE label=$label sec=$SECONDS utc=$(date -u +%H:%M:%S) enabled=$(enabled_shape) a11y=$(a11y_shape) H=$h rows=$n" >&2
+}
+# Informational no-UI sample (no dump runs): $1 label prefix, $2 seconds, probes about every 2 s
+probe_window() {
+  local end=$((SECONDS + $2))
+  while (( SECONDS < end )); do probe "$1"; sleep 2; done
+}
+# Bounded failure evidence. Typed row counts only after whole-file validation; logcat limited to fixed patterns, line
+# length and total bytes. No arbitrary content dump.
+typed_counts() {
+  if [ ! -s "$1" ]; then echo "log: empty or unreadable" >&2; return 0; fi
+  if log_valid "$1"; then
+    echo "log typed rows: S=$(grep -c '^S,' "$1" || true) H=$(grep -c '^H,' "$1" || true) C=$(grep -c '^C,' "$1" || true) O=$(grep -c '^O,' "$1" || true) FS=$(grep -c '^FS,' "$1" || true) F=$(grep -c '^F,' "$1" || true)" >&2
+  else
+    echo "log: contains non-allowlisted shapes (not printed)" >&2
+  fi
+}
+LOGCAT_PATTERN='Force stopping|force-stop|forceStop|UiAutomation|AccessibilityManagerService|AccessibilityServiceConnection|am_kill|am_proc_died|Process .* has died|am_crash|am_anr|PackageManager.*(removed|replaced)|Play Protect|VerifyApps'
+bounded_logcat() {
+  timeout 15s adb logcat -b all -d -v threadtime 2>/dev/null | grep -E "${PKG//./\\.}|$LOGCAT_PATTERN" | tail -60 | cut -c1-240 | head -c 12000 >&2 || true
 }
