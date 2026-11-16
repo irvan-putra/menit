@@ -11,7 +11,7 @@ android {
         minSdk 26
         targetSdk 34
         versionCode = (project.findProperty('versionCode') ?: '1').toString().toInteger()
-        versionName = (project.findProperty('versionName') ?: '0.1.0-test').toString()
+        versionName = (project.findProperty('versionName') ?: '0.1.0').toString()
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
