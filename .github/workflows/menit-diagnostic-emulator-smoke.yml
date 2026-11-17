@@ -18,13 +18,16 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           sha256sum --check <<'HASHES'
-          7824ab2f93c4f38da47446f22641afd393249b366ecd117e180897ad87a859bc  diagnostic/tools/emulator-smoke.sh
-          83b21e4a377ad5366ef22d19b6ee7f7e74f2c7ac6c61ae7d5682ffb2e44572b0  diagnostic/tools/emulator-helpers.sh
+          9f869104bec1e4b73bcf6bd94465a656653e881ec881ce6e0e604ac3a7a90670  diagnostic/app/src/main/java/com/vanipy/menit/diag/DiagActivity.java
+          1ea9405f6b7339a2d4c75dcb630c2be99b1be6c8889368e465c91ff5bd934dce  diagnostic/tools/emulator-smoke.sh
+          6573d13f5cb937eb8efc03bdb6476e31d59d6acd3ab7af1147aedf2a698eefb9  diagnostic/tools/emulator-helpers.sh
           4ad8e2bf78f05e4230ba5833981dde54616f2e870a92f1924eb5991dd9d41441  diagnostic/tools/emulator-helpers-test.sh
+          7216c39dc38f895dde99c57fb71edf8d523c0d9f9ed495c19f5d0124976f577c  diagnostic/tools/layout-test.sh
           cbea2cf124afd4fb8f1759c5ad4bdef8ec99503270022208628e30753fba3b5c  diagnostic/tools/bracket-sorted-test.sh
           f609c6ce4c368faa988b56d2763b57406b12fd4d60b687824d750b8f5d97bd01  diagnostic/tools/verifier-report-test.sh
           HASHES
           bash diagnostic/tools/emulator-helpers-test.sh
+          bash diagnostic/tools/layout-test.sh diagnostic/tools/emulator-helpers.sh
           bash diagnostic/tools/bracket-sorted-test.sh diagnostic/tools/emulator-helpers.sh
           bash diagnostic/tools/verifier-report-test.sh diagnostic/tools/emulator-helpers.sh
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4

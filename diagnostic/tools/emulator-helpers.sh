@@ -195,3 +195,28 @@ bracket_logcat_sorted() {
     printf '%s\n' "$w" | grep -Ev "$BRACKET_PRIORITY_RE" 2>/dev/null | grep -v '^$' | head -90
   } 2>/dev/null | head -n 153 | head -c 20000 >&2 || true
 }
+
+# ---- layout check (host-testable): the Back button must be fully inside the visible scroll viewport ----
+# $1 = uiautomator dump xml. Fails closed (returns 1) if the Back button or the ScrollView is missing, if Back starts
+# above or ends at/below the bottom of the ScrollView (a partly visible node is reported with bounds clipped to the
+# viewport, so a cropped button ends exactly at the viewport edge), or if it is implausibly short. Prints integers only.
+back_fully_visible() {
+  python3 - "$1" <<'PY'
+import re, sys, xml.etree.ElementTree as ET
+def b(n):
+    m = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', n.attrib.get('bounds', ''))
+    return tuple(map(int, m.groups())) if m else None
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except Exception:
+    print("layout: dump unreadable"); raise SystemExit(1)
+sv = [b(n) for n in root.iter() if n.attrib.get('class') == 'android.widget.ScrollView' and b(n)]
+back = [b(n) for n in root.iter() if n.attrib.get('text') == 'Back' and n.attrib.get('class') == 'android.widget.Button' and b(n)]
+if not sv or not back:
+    print("layout: ScrollView or Back button missing (scrollview=%d back=%d)" % (len(sv), len(back))); raise SystemExit(1)
+sx1, sy1, sx2, sy2 = sv[0]; x1, y1, x2, y2 = back[0]
+if y2 - y1 < 40 or y1 < sy1 or y2 >= sy2 or x1 < sx1 or x2 > sx2:
+    print("layout: Back not fully inside viewport (back y %d-%d, viewport y %d-%d)" % (y1, y2, sy1, sy2)); raise SystemExit(1)
+raise SystemExit(0)
+PY
+}

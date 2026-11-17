@@ -80,8 +80,10 @@ public class DiagActivity extends Activity {
     private void chat() {
         final String title = screen.equals("chatA") ? "Synthetic chat A" : screen.equals("chatB") ? "Synthetic chat B" : "Synthetic screen";
         TextView hv = text(title, 20, true); hv.setId(screen.equals("unrec") ? R.id.decoy_header : R.id.chat_header);
-        for (int i = 1; i <= 25; i++) text("Synthetic message " + i + ": fixed filler text for the test.", 14, false);
+        // Back sits directly under the header so it is fully visible without scrolling (it used to follow the 25 filler lines
+        // and was cut off by the bottom edge in the top-of-scroll screenshots). The filler stays so the screen still scrolls.
         button("Back", v -> { screen = "home"; render(); });
+        for (int i = 1; i <= 25; i++) text("Synthetic message " + i + ": fixed filler text for the test.", 14, false);
     }
 
     @Override public void onBackPressed() { if (!screen.equals("home")) { screen = "home"; render(); } else super.onBackPressed(); }

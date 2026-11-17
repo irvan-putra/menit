@@ -95,6 +95,8 @@ assert_screen() {
   scroll_to_top
   dump_ui
   contains_text "$wanted" || { echo "Expected UI text missing after scrolling to top: $wanted" >&2; return 1; }
+  # Layout regression: the Back control must be fully inside the scroll viewport (it was partly cropped in earlier captures).
+  lmsg=$(back_fully_visible "$TMP_XML") || { echo "Layout check failed on $file: $lmsg" >&2; return 1; }
   # This proves visible synthetic UI only; service behavior is checked separately from persisted log rows.
   adb exec-out screencap -p > "$EVIDENCE_DIR/$file.png"
 }
