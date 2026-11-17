@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""Launcher icon generator: one picture plus the shared version badge.
+
+Deterministic. Same version in, same PNGs out. Inputs are pinned: Pillow
+PILLOW_PIN and DejaVu Sans Bold with sha256 FONT_SHA256. The script fails
+instead of falling back to another font or Pillow version, because a
+different rasterizer or font changes the pixels.
+    pip install pillow==12.3.0   (fonts-dejavu-core provides the font)
+
+Badge: numbers only, a full-width strip across the bottom 24% of the icon.
+Picture safety: every picture pixel is checked to lie inside the circle that
+touches the icon edges (shrunk by a margin), so round launcher masks do not
+clip it; the version text is checked the same way.
+"""
+import hashlib, math, os, re, sys
+import PIL
+from PIL import Image, ImageChops, ImageDraw, ImageFont
+
+PILLOW_PIN = "12.3.0"
+FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+FONT_SHA256 = "d1c3ff99f1e1ce1827a33efd4dad81f40babda06bff9e43bd7591c86662a287b"
+DENSITIES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+S = 768
+STRIP_TOP = 0.76      # strip covers 76%..100% of the icon height
+TEXT_SIZE = 0.115     # numeral size, fraction of icon size
+SAFE_R = 0.485        # picture and text must stay inside this radius (fraction)
+
+if PIL.__version__ != PILLOW_PIN:
+    sys.exit("Pillow %s required, found %s" % (PILLOW_PIN, PIL.__version__))
+
+
+def font(px):
+    if not os.path.exists(FONT_PATH):
+        sys.exit("missing font " + FONT_PATH)
+    if hashlib.sha256(open(FONT_PATH, "rb").read()).hexdigest() != FONT_SHA256:
+        sys.exit("unexpected font file " + FONT_PATH)
+    return ImageFont.truetype(FONT_PATH, px)
+
+
+def circle_mask(size, r=SAFE_R):
+    m = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(m).ellipse([size * (.5 - r), size * (.5 - r), size * (.5 + r), size * (.5 + r)], fill=255)
+    return m
+
+
+def assert_inside_circle(layer, what, size=S, r=SAFE_R):
+    alpha = layer.getchannel("A").point(lambda v: 255 if v > 8 else 0)
+    outside = ImageChops.multiply(alpha, ImageChops.invert(circle_mask(size, r)))
+    box = outside.getbbox()
+    if box:
+        sys.exit("%s leaves the round-mask safe circle at %s" % (what, box))
+
+
+def new_layer(size=S):
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    return img, ImageDraw.Draw(img)
+
+
+def sparkle(d, cx, cy, r, fill, size=S):
+    pts = []
+    for i in range(96):
+        t = i * 2 * math.pi / 96
+        pts.append((cx * size + r * size * math.cos(t) ** 3, cy * size + r * size * math.sin(t) ** 3))
+    d.polygon(pts, fill=fill)
+
+
+def rrect(d, box, radius, fill, size=S):
+    d.rounded_rectangle([c * size for c in box], radius=radius * size, fill=fill)
+
+
+def compose(bg, art, version, strip, text, rounded=None, size=S, circle_check=True):
+    """Background, then the picture layer, then the badge strip."""
+    if circle_check:
+        assert_inside_circle(art, "picture", size)
+    base = Image.new("RGBA", (size, size), bg) if bg else Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    base.alpha_composite(art)
+    d = ImageDraw.Draw(base)
+    y0 = int(size * STRIP_TOP)
+    d.rectangle([0, y0, size, size], fill=strip)
+    tl, td = new_layer(size)
+    f = font(int(size * TEXT_SIZE))
+    td.text((size / 2, (y0 + size) / 2), version, font=f, fill=text, anchor="mm")
+    if circle_check:
+        assert_inside_circle(tl, "version text", size)
+    base.alpha_composite(tl)
+    if rounded:
+        m = Image.new("L", (size, size), 0)
+        ImageDraw.Draw(m).rounded_rectangle([0, 0, size - 1, size - 1], radius=rounded * size, fill=255)
+        base.putalpha(ImageChops.multiply(base.getchannel("A"), m))
+    return base
+
+
+def parse_version(argv, fallback=None):
+    v = argv[1] if len(argv) > 1 else fallback
+    if not v or not re.fullmatch(r"\d+\.\d+\.\d+", v):
+        sys.exit("version must be X.Y.Z")
+    return v
+
+
+def write_densities(img, res_dir, name="ic_launcher.png"):
+    for dens, px in DENSITIES.items():
+        out = os.path.join(res_dir, "mipmap-" + dens)
+        os.makedirs(out, exist_ok=True)
+        img.resize((px, px), Image.LANCZOS).save(os.path.join(out, name), optimize=True)
+
+
+def menit(version):
+    # time dial with the AI sparkle inside it
+    BG, WHITE, AMBER = (31, 111, 235, 255), (255, 255, 255, 255), (255, 200, 40, 255)
+    art, d = new_layer()
+    cx, cy, r = S * .50, S * .43, S * .29
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=WHITE, width=int(S * .045))
+    w = int(S * .04)
+    for p, q in (((.50, .43), (.50, .60)), ((.50, .43), (.35, .43))):   # minute hand down, hour hand left
+        d.line([(p[0] * S, p[1] * S), (q[0] * S, q[1] * S)], fill=WHITE, width=w)
+        for x, y in (p, q):
+            d.ellipse([x * S - w / 2, y * S - w / 2, x * S + w / 2, y * S + w / 2], fill=WHITE)
+    sparkle(d, .61, .32, .105, AMBER)
+    return compose(BG, art, version, (14, 62, 150, 255), WHITE, rounded=.2)
+
+
+
+def main():
+    version = parse_version(sys.argv)
+    root = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    write_densities(menit(version), os.path.join(root, "app/src/main/res"))
+    print("wrote icons for", version)
+
+
+if __name__ == "__main__":
+    main()
