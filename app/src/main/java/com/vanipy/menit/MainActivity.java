@@ -51,7 +51,7 @@ public class MainActivity extends Activity {
     /** forcePermission: skip the access check (used once after a SecurityException, so no loop). */
     private void render(boolean forcePermission) {
         root.removeAllViews();
-        text("Menit", 28, INK, true);
+        text("menit", 28, INK, true);
         text("How much of your phone time goes to AI", 15, MUTED, false);
         space(16);
         if (forcePermission || !UsageReader.hasAccess(this)) {
@@ -135,7 +135,7 @@ public class MainActivity extends Activity {
     private void renderPermission() {
         text("One permission needed", 20, INK, true);
         space(8);
-        text("Menit reads which app was on screen and for how long, using Android's Usage access setting. "
+        text("menit reads which app was on screen and for how long, using Android's Usage access setting. "
                 + "It sees app names and times only: no messages, no page contents, no screenshots.\n\n"
                 + "The app asks for no network permission and has no upload, export or sharing feature. It stores nothing on the phone.\n\n"
                 + "You can turn it off at any time in the same setting.", 15, INK, false);
@@ -150,7 +150,7 @@ public class MainActivity extends Activity {
         });
         root.addView(go);
         space(12);
-        text("In the list, pick Menit and switch on \"Allow usage tracking\", then come back.", 13, MUTED, false);
+        text("In the list, pick menit and switch on \"Allow usage tracking\", then come back.", 13, MUTED, false);
     }
 
     private View tab(String label, boolean selected, boolean isWeek) {
