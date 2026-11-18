@@ -6,7 +6,7 @@ content_ids={
  'com.vanipy.menit':['widget_ai_time','widget_detail'],
  'com.vanipy.tumbuh':['widget_step_detail'],
  'com.vanipy.denyut':['widget_reminder_due'],
- 'com.vanipy.kemas':['widget_progress'],
+ 'com.vanipy.kemas':['widget_progress','widget_progress_text'],
 }
 import os
 single_pkg=os.environ.get('SINGLE_PKG','')
