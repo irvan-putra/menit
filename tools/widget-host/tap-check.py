@@ -1,8 +1,9 @@
 """Tap each actual counter and require its own installed app to resume."""
-import re,subprocess,time,xml.etree.ElementTree as E,pathlib
+import re,subprocess,time,xml.etree.ElementTree as E,pathlib,os
 out=pathlib.Path('host-evidence')
 def adb(*args):return subprocess.run(['adb',*args],capture_output=True,check=True).stdout
 for pkg,rid in [('intodo','widget_summary_root'),('saku','widget_container'),('menit','widget_root'),('tumbuh','widget_root'),('denyut','widget_root'),('kemas','widget_root')]:
+ if os.environ.get('INTODO_ONLY')=='true' and pkg!='intodo':continue
  full='com.vanipy.'+pkg
  adb('shell','am','start','-W','-f','0x04000000','-n','com.vanipy.widgethost/.HostActivity')
  found=None

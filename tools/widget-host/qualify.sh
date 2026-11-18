@@ -35,6 +35,19 @@ adb shell am force-stop com.vanipy.intodo
 adb push /tmp/intodo-demo.xml /data/local/tmp/intodo-demo.xml
 adb shell 'mkdir -p /data/data/com.vanipy.intodo/shared_prefs; cp /data/local/tmp/intodo-demo.xml /data/data/com.vanipy.intodo/shared_prefs/instinct_widget.xml; chown -R $(stat -c %u /data/data/com.vanipy.intodo):$(stat -c %g /data/data/com.vanipy.intodo) /data/data/com.vanipy.intodo/shared_prefs'
 adb shell appwidget grantbind --package com.vanipy.widgethost --user 0
+if [ "${INTODO_ONLY:-false}" = true ]; then
+  for span in 1x1 5x1 5x6; do
+    x=${span%x*}; y=${span#*x}
+    adb shell am start -W -f 0x04000000 -n com.vanipy.widgethost/.HostActivity --ei single 0 --ei spanX "$x" --ei spanY "$y"
+    adb shell uiautomator dump /sdcard/intodo.xml
+    adb pull /sdcard/intodo.xml "host-evidence/intodo-$span.xml"
+    adb exec-out screencap -p > "host-evidence/intodo-$span.png"
+  done
+  python3 tools/widget-host/tap-check.py
+  adb shell dumpsys package com.vanipy.intodo > host-evidence/intodo-package.txt
+  sha256sum host-apks/intodo.apk > host-evidence/intodo-apk-hash.txt
+  exit 0
+fi
 for mode in counters strips intermediate expanded-first expanded-middle expanded-last counters-resized; do
   args=''
   case "$mode" in intermediate) args='--ez intermediate true';; strips) args='--ez strips true';; expanded-first) args='--ez expanded true --ei start 0';; expanded-middle) args='--ez expanded true --ei start 2';; expanded-last) args='--ez expanded true --ei start 4';; esac
