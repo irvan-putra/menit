@@ -71,7 +71,7 @@ public class MenitWidgetProvider extends AppWidgetProvider {
             v.setTextViewText(R.id.widget_ai_time, Report.format(r.aiMs));
             v.setTextViewText(R.id.widget_detail, pct < 0
                     ? "No screen time recorded yet today"
-                    : (compact ? "of " : "with AI, of ") + Report.format(r.totalMs) + " on the phone (" + pct + "%)");
+                    : compact ? pct + "% of " + Report.format(r.totalMs) : "with AI, of " + Report.format(r.totalMs) + " on the phone (" + pct + "%)");
             v.setProgressBar(R.id.widget_progress, 100, Math.max(pct, 0), false);
             v.setViewVisibility(R.id.widget_progress, View.VISIBLE);
             StringBuilder apps = new StringBuilder();
