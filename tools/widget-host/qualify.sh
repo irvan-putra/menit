@@ -36,6 +36,7 @@ for mode in counters strips expanded-first expanded-last counters-resized; do
     if grep -q 'DEMO' host-evidence/current.xml; then break; fi
     sleep 2
   done
+  if grep -Eqi "Problem loading widget|Couldn.t add widget|BIND FAILED|not installed" host-evidence/current.xml; then exit 1; fi
   sleep 2
   adb exec-out screencap -p > "host-evidence/$mode.png"
   cp host-evidence/current.xml "host-evidence/$mode.xml"

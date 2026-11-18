@@ -65,12 +65,13 @@ public class HostActivity extends Activity {
             mgr.updateAppWidgetOptions(id, opts);
             AppWidgetHostView view = host.createView(this,id,info);
             grid.addView(view,lp);
-            view.updateAppWidgetSize(opts,contentW,contentH,contentW,contentH);
+            view.updateAppWidgetSize(opts,contentW,contentH,contentW,contentH,true);
             added++;
             android.util.Log.i("WidgetQualification", "BOUND " + pkgs[i]+" id="+id+" content="+contentW+"x"+contentH);
         }
         root.addView(label("Bound providers: "+added+" / "+(expanded ? 3 : 6), 12));
         setContentView(root);
+        if (added != (expanded ? 3 : 6)) throw new IllegalStateException("Missing or unbound providers: " + added);
     }
     @Override protected void onDestroy() { if(host!=null)host.stopListening();super.onDestroy(); }
 }
