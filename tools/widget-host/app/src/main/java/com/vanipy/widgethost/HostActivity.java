@@ -65,7 +65,9 @@ public class HostActivity extends Activity {
             mgr.updateAppWidgetOptions(id, opts);
             AppWidgetHostView view = host.createView(this,id,info);
             grid.addView(view,lp);
-            view.updateAppWidgetSize(opts,contentW,contentH,contentW,contentH,true);
+            view.updateAppWidgetSize(opts, java.util.Collections.singletonList(new android.util.SizeF(
+                    lp.width / getResources().getDisplayMetrics().density,
+                    lp.height / getResources().getDisplayMetrics().density)));
             added++;
             android.util.Log.i("WidgetQualification", "BOUND " + pkgs[i]+" id="+id+" content="+contentW+"x"+contentH);
         }
