@@ -27,12 +27,12 @@ public class HostActivity extends Activity {
         if (ids.isEmpty()) host.deleteHost(); host.startListening();
         AppWidgetManager mgr = AppWidgetManager.getInstance(this);
         LinearLayout root = new LinearLayout(this); root.setOrientation(1);
-        root.setPadding(dp(12), dp(12), dp(12), dp(12)); root.setBackgroundColor(Color.rgb(47,65,88));
+        root.setPadding(dp(24), dp(12), dp(24), dp(12)); root.setBackgroundColor(Color.rgb(47,65,88));
         root.addView(label("5 × 6 grid · Android widget host", 17));
         root.addView(label(expanded ? "Expanded widgets · separate page" : strips ? "Six 5 × 1 slots" : "Six 1 × 1 counters", 13));
         root.addView(label("Synthetic profiles · not Samsung One UI", 11));
         GridLayout grid = new GridLayout(this); grid.setColumnCount(5); grid.setRowCount(6);
-        int gridW = getResources().getDisplayMetrics().widthPixels - dp(24);
+        int gridW = getResources().getDisplayMetrics().widthPixels - dp(48);
         int cellW = gridW / 5;
         int cellH = dp(96);
         root.addView(grid, new LinearLayout.LayoutParams(gridW, cellH * 6));
@@ -44,8 +44,8 @@ public class HostActivity extends Activity {
             for (AppWidgetProviderInfo p : providers) if (p.provider.getPackageName().equals(pkgs[i])) { info = p; break; }
             int cols = expanded || strips ? 5 : 1;
             int rows = expanded ? 2 : 1;
-            int row = expanded ? (i % 3) * 2 : strips ? i : i / 5;
-            int col = expanded || strips ? 0 : i % 5;
+            int row = expanded ? (i % 3) * 2 : strips ? i : i / 3;
+            int col = expanded || strips ? 0 : i % 3 + 1;
             if (expanded && i < getIntent().getIntExtra("start", 0)) continue;
             if (expanded && i >= getIntent().getIntExtra("start", 0) + 3) continue;
             GridLayout.LayoutParams lp = new GridLayout.LayoutParams(GridLayout.spec(row, rows), GridLayout.spec(col, cols));
