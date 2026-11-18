@@ -5,7 +5,9 @@ def adb(*args):return subprocess.run(['adb',*args],capture_output=True,check=Tru
 for pkg,rid in [('intodo','widget_summary_root'),('saku','widget_container'),('menit','widget_root'),('tumbuh','widget_root'),('denyut','widget_root'),('kemas','widget_root')]:
  if os.environ.get('INTODO_ONLY')=='true' and pkg!='intodo':continue
  full='com.vanipy.'+pkg
- adb('shell','am','start','-W','-f','0x04000000','-n','com.vanipy.widgethost/.HostActivity')
+ args=['shell','am','start','-W','-f','0x04000000','-n','com.vanipy.widgethost/.HostActivity']
+ if os.environ.get('INTODO_ONLY')=='true':args+=['--ei','single','0','--ei','spanX','1','--ei','spanY','1']
+ adb(*args)
  found=None
  for _ in range(10):
   try:
