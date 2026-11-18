@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p host-evidence
+adb root
+adb wait-for-device
+adb shell wm size 1080x2340
+adb shell wm density 420
+adb shell settings put system font_scale 1.0
+for apk in host-apks/*.apk; do adb install -r "$apk"; done
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r tools/widget-host/app/build/outputs/apk/debug/app-debug.apk
+# Synthetic profiles only in a disposable emulator. This does not enable demo in release defaults.
+for p in menit tumbuh denyut kemas; do
+  printf '<map><boolean name="demo_mode" value="true" /></map>\n' > /tmp/profile.xml
+  adb push /tmp/profile.xml /data/local/tmp/profile.xml
+  adb shell "mkdir -p /data/data/com.vanipy.$p/shared_prefs; cp /data/local/tmp/profile.xml /data/data/com.vanipy.$p/shared_prefs/${p}_prefs.xml; chown -R \$(stat -c %u /data/data/com.vanipy.$p):\$(stat -c %g /data/data/com.vanipy.$p) /data/data/com.vanipy.$p/shared_prefs"
+done
+python3 - <<'PY'
+import json,pathlib
+items=[]
+for i in range(1,12):
+ items.append(dict(id=i,area=(i-1)%4,title='Synthetic open item '+str(i),firstStep='Take one small step',status='open',weight=3,created=100000000,updated=100000000,log=[]))
+pathlib.Path('/tmp/tumbuh-demo.json').write_text(json.dumps(items))
+PY
+adb push /tmp/tumbuh-demo.json /data/local/tmp/tumbuh-demo.json
+adb shell 'mkdir -p /data/data/com.vanipy.tumbuh/files; cp /data/local/tmp/tumbuh-demo.json /data/data/com.vanipy.tumbuh/files/tumbuh-demo.json; chown -R $(stat -c %u /data/data/com.vanipy.tumbuh):$(stat -c %g /data/data/com.vanipy.tumbuh) /data/data/com.vanipy.tumbuh/files'
+adb shell appwidget grantbind --package com.vanipy.widgethost --user 0
+for mode in counters strips expanded-first expanded-last counters-resized; do
+  args=''
+  case "$mode" in strips) args='--ez strips true';; expanded-first) args='--ez expanded true --ei start 0';; expanded-last) args='--ez expanded true --ei start 3';; esac
+  adb shell am start -W -n com.vanipy.widgethost/.HostActivity $args
+  # Wait for provider updates and view inflation, bounded by 30 seconds.
+  for i in $(seq 1 15); do
+    adb shell uiautomator dump /sdcard/host.xml
+    adb pull /sdcard/host.xml host-evidence/current.xml
+    if grep -q 'DEMO' host-evidence/current.xml; then break; fi
+    sleep 2
+  done
+  sleep 2
+  adb exec-out screencap -p > "host-evidence/$mode.png"
+  cp host-evidence/current.xml "host-evidence/$mode.xml"
+done
+adb logcat -d -s WidgetQualification:I AndroidRuntime:E > host-evidence/host.log
+cat host-evidence/host.log
+if grep -q 'FATAL EXCEPTION' host-evidence/host.log; then exit 1; fi
+adb shell dumpsys appwidget > host-evidence/appwidget.txt
+sha256sum host-apks/*.apk app/build/outputs/apk/debug/app-debug.apk > host-evidence/apk-hashes.txt

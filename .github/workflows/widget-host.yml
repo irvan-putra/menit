@@ -1,0 +1,49 @@
+name: combined widget host qualification
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_runs:
+        description: JSON map of repo to exact run,sha,artifact substring
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  host:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Download pinned debug qualification artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RUNS: ${{ inputs.artifact_runs }}
+        run: python3 tools/widget-host/download-apks.py
+      - name: Build host and menit debug
+        run: |
+          curl -fsSL -o /tmp/g.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          echo '544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d  /tmp/g.zip' | sha256sum -c -
+          unzip -q /tmp/g.zip -d /tmp
+          /tmp/gradle-8.7/bin/gradle --no-daemon :app:assembleDebug
+          /tmp/gradle-8.7/bin/gradle --no-daemon -p tools/widget-host :app:assembleDebug
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          script: bash tools/widget-host/qualify.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: combined-widget-host-evidence
+          path: host-evidence/
+          if-no-files-found: warn
