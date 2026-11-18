@@ -1,0 +1,70 @@
+package com.vanipy.menit;
+
+import static org.junit.Assert.*;
+import android.app.AppOpsManager;
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.view.View;
+import android.widget.FrameLayout;
+import android.widget.RemoteViews;
+import java.io.File;
+import java.io.FileOutputStream;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
+import org.robolectric.Shadows;
+import org.robolectric.annotation.Config;
+import org.robolectric.annotation.GraphicsMode;
+
+/** Renders the home-screen widget exactly as the launcher would, to PNG. */
+@RunWith(RobolectricTestRunner.class)
+@Config(sdk = 34)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+public class WidgetRenderTest {
+    private static final int W = 660, H = 320; // ~4x2 cells at density 2
+
+    private void snapshot(RemoteViews rv, Context c, String outName) throws Exception {
+        FrameLayout parent = new FrameLayout(c);
+        View v = rv.apply(c, parent);
+        v.measure(View.MeasureSpec.makeMeasureSpec(W, View.MeasureSpec.EXACTLY),
+                  View.MeasureSpec.makeMeasureSpec(H, View.MeasureSpec.EXACTLY));
+        v.layout(0, 0, W, v.getMeasuredHeight());
+        Bitmap bmp = Bitmap.createBitmap(W, v.getMeasuredHeight(), Bitmap.Config.ARGB_8888);
+        v.draw(new Canvas(bmp));
+        File out = new File(System.getProperty("menit.snapshotDir", "build/ui-snapshots"), outName);
+        out.getParentFile().mkdirs();
+        try (FileOutputStream fos = new FileOutputStream(out)) {
+            bmp.compress(Bitmap.CompressFormat.PNG, 100, fos);
+        }
+        assertTrue(out.length() > 2000);
+    }
+
+    @Test
+    public void widgetDemoMode() throws Exception {
+        Context c = RuntimeEnvironment.getApplication();
+        c.getSharedPreferences("menit_prefs", Context.MODE_PRIVATE).edit().putBoolean("demo_mode", true).commit();
+        RemoteViews rv = MenitWidgetProvider.buildViews(c);
+        snapshot(rv, c, "widget-demo.png");
+        c.getSharedPreferences("menit_prefs", Context.MODE_PRIVATE).edit().clear().commit();
+    }
+
+    @Test
+    public void widgetNoAccess() throws Exception {
+        Context c = RuntimeEnvironment.getApplication();
+        AppOpsManager ops = (AppOpsManager) c.getSystemService(Context.APP_OPS_SERVICE);
+        Shadows.shadowOf(ops).setMode(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), "com.vanipy.menit", AppOpsManager.MODE_IGNORED);
+        snapshot(MenitWidgetProvider.buildViews(c), c, "widget-no-access.png");
+    }
+
+    @Test
+    public void demoReportMatchesClaimedNumbers() {
+        Report r = DemoData.report("com.vanipy.menit");
+        assertEquals(192 * 60_000L, r.totalMs);
+        assertEquals(47 * 60_000L, r.aiMs);
+        assertEquals(132 * 60_000L, r.mixedMs);
+        assertEquals(3, r.aiRows.size());
+    }
+}

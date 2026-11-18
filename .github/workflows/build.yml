@@ -30,6 +30,13 @@ jobs:
           unzip -q /tmp/g.zip -d /tmp
       - name: Test and build
         run: /tmp/gradle-8.7/bin/gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Upload UI and widget snapshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: menit-ui-snapshots
+          path: app/build/ui-snapshots/*.png
+          if-no-files-found: warn
+          retention-days: 14
       - name: Name the APK with its version
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_test_artifact }}
         run: |

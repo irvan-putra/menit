@@ -25,6 +25,7 @@ public class MainActivity extends Activity {
     private static final int MUTED = Color.rgb(96, 104, 118);
     private static final int ACCENT = Color.rgb(31, 111, 235);
     private static final int AMBER = Color.rgb(196, 134, 20);
+    private static final int DEMO_RED = Color.rgb(180, 40, 40);
 
     private LinearLayout root;
     private boolean week = false;
@@ -44,6 +45,7 @@ public class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         render();
+        MenitWidgetProvider.updateAll(this);
     }
 
     private void render() { render(false); }
@@ -54,8 +56,21 @@ public class MainActivity extends Activity {
         text("menit", 28, INK, true);
         text("How much of your phone time goes to AI", 15, MUTED, false);
         space(16);
+        if (DemoMode.isOn(this)) {
+            text("DEMO - made-up profile for showing friends, not your usage", 14, DEMO_RED, true);
+            space(8);
+            renderReport(DemoData.report(getPackageName()));
+            space(24);
+            text("Demo data is made up, bundled with the app, and never leaves this phone. "
+                    + "Switch Demo data off below to return to your own usage.", 13, MUTED, false);
+            renderDemoToggle();
+            space(12);
+            text("Version " + version(), 12, MUTED, false);
+            return;
+        }
         if (forcePermission || !UsageReader.hasAccess(this)) {
             renderPermission();
+            renderDemoToggle();
             return;
         }
         LinearLayout tabs = new LinearLayout(this);
@@ -91,7 +106,25 @@ public class MainActivity extends Activity {
             }
         }
         Report r = new Report(sum, getPackageName());
+        renderReport(r, week ? perDay.toString().trim() : null);
 
+        space(24);
+        text("How this is measured", 14, INK, true);
+        text("An estimate from Android's usage events: time an app was the one on screen. "
+                + "Screen off ends the session. Android's records can have gaps, and how many days "
+                + "are kept depends on the phone. Split screen and pop-up windows count only the last app touched. "
+                + "Apps in the built-in list count as AI, but an AI app also has non-AI screens "
+                + "(settings, account pages, a built-in browser), so even that number is not exact. "
+                + "Time on screen is not attention. "
+                + "This app has no network permission and no upload, export or sharing feature, and backups are off.", 13, MUTED, false);
+        renderDemoToggle();
+        space(12);
+        text("Version " + version(), 12, MUTED, false);
+    }
+
+    private void renderReport(Report r) { renderReport(r, null); }
+
+    private void renderReport(Report r, String perDay) {
         text(Report.format(r.aiMs), 40, ACCENT, true);
         int pct = Report.percent(r.aiMs, r.totalMs);
         text(pct < 0 ? "No screen time recorded yet"
@@ -105,10 +138,10 @@ public class MainActivity extends Activity {
             for (Report.Row row : r.aiRows) bar(row, r.aiMs, ACCENT);
         }
 
-        if (week) {
+        if (perDay != null) {
             space(20);
             text("Per day (AI apps)", 14, MUTED, true);
-            text(perDay.toString().trim(), 15, INK, false);
+            text(perDay, 15, INK, false);
         }
 
         space(24);
@@ -118,18 +151,17 @@ public class MainActivity extends Activity {
                 + "This time is shown separately and is not added to the AI total.", 13, MUTED, false);
         space(8);
         for (Report.Row row : r.mixedRows) bar(row, Math.max(r.mixedMs, 1), AMBER);
+    }
 
-        space(24);
-        text("How this is measured", 14, INK, true);
-        text("An estimate from Android's usage events: time an app was the one on screen. "
-                + "Screen off ends the session. Android's records can have gaps, and how many days "
-                + "are kept depends on the phone. Split screen and pop-up windows count only the last app touched. "
-                + "Apps in the built-in list count as AI, but an AI app also has non-AI screens "
-                + "(settings, account pages, a built-in browser), so even that number is not exact. "
-                + "Time on screen is not attention. "
-                + "This app has no network permission and no upload, export or sharing feature, and backups are off.", 13, MUTED, false);
-        space(12);
-        text("Version " + version(), 12, MUTED, false);
+    private void renderDemoToggle() {
+        space(20);
+        final boolean on = DemoMode.isOn(this);
+        Button b = new Button(this);
+        b.setText(on ? "Demo data: ON (made-up profile) - tap to switch back to your usage"
+                : "Demo data: OFF - tap to show a made-up profile instead");
+        b.setAllCaps(false);
+        b.setOnClickListener(v -> { DemoMode.set(this, !on); render(); });
+        root.addView(b);
     }
 
     private void renderPermission() {
