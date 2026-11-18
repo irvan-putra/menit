@@ -14,8 +14,13 @@ def get(url):
 out=pathlib.Path('host-apks');out.mkdir(exist_ok=True)
 for repo,spec in runs.items():
  run=str(spec['run']); needle=spec['artifact']
- data=json.loads(get(base+repo+'/actions/runs/'+run))
- assert data['head_sha']==spec['sha'], (repo,'commit mismatch')
+ for attempt in range(21):
+  data=json.loads(get(base+repo+'/actions/runs/'+run))
+  assert data['head_sha']==spec['sha'], (repo,'commit mismatch')
+  if data['status']=='completed':break
+  print(repo,'awaiting pinned debug qualification',data['status'],flush=True)
+  if attempt==20:raise RuntimeError((repo,'qualification timeout'))
+  time.sleep(30)
  assert data['status']=='completed' and data['conclusion']=='success', (repo,'run not green')
  artifacts=json.loads(get(base+repo+'/actions/runs/'+run+'/artifacts'))['artifacts']
  choices=[a for a in artifacts if needle in a['name']]
