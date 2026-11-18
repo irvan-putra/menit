@@ -86,6 +86,7 @@ public class MenitWidgetProvider extends AppWidgetProvider {
         }
 
         if (tiny) {
+            v.setContentDescription(R.id.widget_root, r == null ? "menit: usage access off. Tap to set up." : "menit: " + Report.format(r.aiMs) + " with AI, of " + Report.format(r.totalMs) + " on the phone. Tap for details.");
             v.setTextViewText(R.id.widget_ai_time, r == null ? "Off" : String.valueOf(r.aiMs / 60000L));
             v.setTextViewText(R.id.widget_detail, r == null ? "access" : "AI min");
             v.setViewVisibility(R.id.widget_progress, View.GONE);
