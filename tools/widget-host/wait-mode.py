@@ -13,7 +13,7 @@ single_pkg=os.environ.get('SINGLE_PKG','')
 required={
  'counters':['widget_summary_count','widget_lock','widget_ai_time','widget_step_title','widget_reminder','widget_zone'],
  'counters-resized':['widget_summary_count','widget_lock','widget_ai_time','widget_step_title','widget_reminder','widget_zone'],
- 'intermediate':['widget_list','widget_status','widget_ai_time','widget_step_detail','widget_reminder_due','widget_progress'],
+ 'intermediate':['widget_list','widget_status','widget_ai_time','widget_step_detail','widget_reminder_due','widget_progress_text'],
  'single-content':[],
  'strips':['widget_list','widget_status','widget_compact_label','widget_step_detail','widget_reminder_due','widget_before'],
  'expanded-first':['widget_list','widget_title','widget_status'],
