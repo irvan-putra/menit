@@ -1,7 +1,7 @@
 import subprocess,xml.etree.ElementTree as E,time,sys,pathlib
 mode=sys.argv[1]
 content_ids={
- 'com.vanipy.intodo':['widget_list'],
+ 'com.vanipy.intodo':['widget_list','item_title'],
  'com.vanipy.saku':['widget_status'],
  'com.vanipy.menit':['widget_ai_time','widget_detail'],
  'com.vanipy.tumbuh':['widget_step_detail'],
@@ -36,7 +36,8 @@ for _ in range(25):
   if (mode=='single-content' and single_pkg=='com.vanipy.intodo') or mode in ['strips','intermediate','expanded-first']:
    assert 'Read chapter' in text, 'real collection rows missing'
   if mode=='single-content':
-   assert any(n.get('text','').strip() for n in nodes if n.get('resource-id','').split(':id/')[-1] in required), 'content empty'
+   visible_text = [n.get('text','').strip() for n in nodes if n.get('resource-id','').split(':id/')[-1] in required]
+   assert any(visible_text), 'content empty'
   assert not any(x in text.lower() for x in ['problem loading widget',"couldn\'t add widget",'not installed','bind failed'])
   if mode in ['counters','counters-resized']:
    assert 'AI min' in text and '3/5' in text and 'notes' in text
