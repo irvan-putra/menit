@@ -7,7 +7,7 @@ required={
  'strips':['widget_list','widget_status','widget_compact_label','widget_step_detail','widget_reminder_due','widget_before'],
  'expanded-first':['widget_list','widget_title','widget_status'],
  'expanded-middle':['widget_apps','widget_counts'],
- 'expanded-last':['widget_notes','widget_hint','widget_before','widget_after'],
+ 'expanded-last':['widget_notes','widget_before','widget_after'],
 }[mode]
 last=b''
 for _ in range(25):
