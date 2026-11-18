@@ -55,16 +55,6 @@ if [ "${INTODO_ONLY:-false}" = true ]; then
   exit 0
 fi
 pkgs=(com.vanipy.intodo com.vanipy.saku com.vanipy.menit com.vanipy.tumbuh com.vanipy.denyut com.vanipy.kemas)
-# The user's Samsung showed counter-only blanks at 2-3 columns; require populated content there.
-for i in 0 1 2 3 4 5; do
-  for span in 2x1 3x1 2x2 3x2; do
-    x=${span%x*}; y=${span#*x}
-    adb shell am start -W -f 0x04000000 -n com.vanipy.widgethost/.HostActivity --ei single "$i" --ei spanX "$x" --ei spanY "$y"
-    SINGLE_PKG="${pkgs[$i]}" python3 tools/widget-host/wait-mode.py single-content
-    adb exec-out screencap -p > "host-evidence/${pkgs[$i]##*.}-$span.png"
-    cp host-evidence/current.xml "host-evidence/${pkgs[$i]##*.}-$span.xml"
-  done
-done
 # Resize the SAME live HostView and widget ID repeatedly, including counter transitions.
 adb shell am start -W -f 0x04000000 -n com.vanipy.widgethost/.HostActivity --ei single 0 --ei spanX 2 --ei spanY 1
 for span in 3x1 2x2 3x2 5x6 2x1 3x2; do
@@ -76,6 +66,16 @@ for span in 3x1 2x2 3x2 5x6 2x1 3x2; do
  if [ "$span" = 5x6 ]; then
   python3 -c 'import pathlib; s=pathlib.Path("host-evidence/current.xml").read_text(); assert all("Read chapter "+str(i) in s for i in range(1,7)), "Six items not preserved"'
  fi
+done
+# The user's Samsung showed counter-only blanks at 2-3 columns; require populated content there.
+for i in 0 1 2 3 4 5; do
+  for span in 2x1 3x1 2x2 3x2; do
+    x=${span%x*}; y=${span#*x}
+    adb shell am start -W -f 0x04000000 -n com.vanipy.widgethost/.HostActivity --ei single "$i" --ei spanX "$x" --ei spanY "$y"
+    SINGLE_PKG="${pkgs[$i]}" python3 tools/widget-host/wait-mode.py single-content
+    adb exec-out screencap -p > "host-evidence/${pkgs[$i]##*.}-$span.png"
+    cp host-evidence/current.xml "host-evidence/${pkgs[$i]##*.}-$span.xml"
+  done
 done
 for mode in counters strips intermediate expanded-first expanded-middle expanded-last counters-resized; do
   args=''
