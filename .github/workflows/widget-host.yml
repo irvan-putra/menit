@@ -31,7 +31,7 @@ jobs:
           /tmp/gradle-8.7/bin/gradle --no-daemon :app:assembleDebug
           /tmp/gradle-8.7/bin/gradle --no-daemon -p tools/widget-host :app:assembleDebug
           git clone -q https://github.com/irvan-putra/saku.git /tmp/saku-widget
-          git -C /tmp/saku-widget checkout --detach 0d47458e33f51d96fec7e958553f626db7921d10
+          git -C /tmp/saku-widget checkout --detach 5f38d477692948f9c11e8801ac6e027a51206edc
           /tmp/gradle-8.7/bin/gradle --no-daemon -p /tmp/saku-widget :app:assembleDebug
           cp /tmp/saku-widget/app/build/outputs/apk/debug/*.apk host-apks/saku.apk
           sha256sum host-apks/saku.apk

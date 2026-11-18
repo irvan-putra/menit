@@ -38,7 +38,7 @@ adb shell appwidget grantbind --package com.vanipy.widgethost --user 0
 for mode in counters strips expanded-first expanded-last counters-resized; do
   args=''
   case "$mode" in strips) args='--ez strips true';; expanded-first) args='--ez expanded true --ei start 0';; expanded-last) args='--ez expanded true --ei start 3';; esac
-  adb shell am start -W -n com.vanipy.widgethost/.HostActivity $args
+  adb shell am start -W -f 0x04000000 -n com.vanipy.widgethost/.HostActivity $args
   # Wait for provider updates and view inflation, bounded by 30 seconds.
   for i in $(seq 1 15); do
     adb shell uiautomator dump /sdcard/host.xml
@@ -51,6 +51,7 @@ for mode in counters strips expanded-first expanded-last counters-resized; do
   adb exec-out screencap -p > "host-evidence/$mode.png"
   cp host-evidence/current.xml "host-evidence/$mode.xml"
 done
+python3 tools/widget-host/tap-check.py
 adb logcat -d -s WidgetQualification:I AndroidRuntime:E > host-evidence/host.log
 cat host-evidence/host.log
 if grep -q 'FATAL EXCEPTION' host-evidence/host.log; then exit 1; fi
