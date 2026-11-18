@@ -13,7 +13,7 @@ import java.util.*;
 
 /** Disposable emulator-only host. No network permission, personal data, or release signing. */
 public class HostActivity extends Activity {
-    private AppWidgetHost host;
+    private static AppWidgetHost host;
     private AppWidgetHostView activeView;
     private int activeId, activeCellW, activeCellH;
     private final android.content.BroadcastReceiver resizeReceiver = new android.content.BroadcastReceiver() {
@@ -50,8 +50,11 @@ public class HostActivity extends Activity {
         int single = getIntent().getIntExtra("single", -1);
         int spanX = getIntent().getIntExtra("spanX", 1);
         int spanY = getIntent().getIntExtra("spanY", 1);
-        host = new AppWidgetHost(this, 5261);
-        if (ids.isEmpty()) host.deleteHost(); host.startListening();
+        if (host == null) {
+            host = new AppWidgetHost(getApplicationContext(), 5261);
+            host.deleteHost();
+        }
+        host.startListening();
         AppWidgetManager mgr = AppWidgetManager.getInstance(this);
         LinearLayout root = new LinearLayout(this); root.setOrientation(1);
         root.setPadding(dp(24), dp(12), dp(24), dp(12)); root.setBackgroundColor(Color.rgb(47,65,88));
@@ -104,5 +107,5 @@ public class HostActivity extends Activity {
         setContentView(root);
         if (added != (single >= 0 ? 1 : expanded ? 2 : 6)) throw new IllegalStateException("Missing or unbound providers: " + added);
     }
-    @Override protected void onDestroy() { unregisterReceiver(resizeReceiver);if(host!=null)host.stopListening();super.onDestroy(); }
+    @Override protected void onDestroy() { unregisterReceiver(resizeReceiver);super.onDestroy(); }
 }
