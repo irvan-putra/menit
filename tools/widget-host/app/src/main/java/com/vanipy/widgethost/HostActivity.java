@@ -14,6 +14,26 @@ import java.util.*;
 /** Disposable emulator-only host. No network permission, personal data, or release signing. */
 public class HostActivity extends Activity {
     private AppWidgetHost host;
+    private AppWidgetHostView activeView;
+    private int activeId, activeCellW, activeCellH;
+    private final android.content.BroadcastReceiver resizeReceiver = new android.content.BroadcastReceiver() {
+        @Override public void onReceive(android.content.Context c, android.content.Intent intent) {
+            if (activeView == null) return;
+            int x = intent.getIntExtra("spanX", 2), y = intent.getIntExtra("spanY", 1);
+            android.view.ViewGroup.LayoutParams lp = activeView.getLayoutParams();
+            lp.width = activeCellW*x; lp.height = activeCellH*y; activeView.setLayoutParams(lp);
+            int w = Math.round(lp.width/getResources().getDisplayMetrics().density)-16;
+            int h = Math.round(lp.height/getResources().getDisplayMetrics().density)-16;
+            Bundle opts = new Bundle();
+            opts.putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH,w);
+            opts.putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH,w);
+            opts.putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT,h);
+            opts.putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,h);
+            AppWidgetManager.getInstance(HostActivity.this).updateAppWidgetOptions(activeId,opts);
+            activeView.updateAppWidgetSize(opts, java.util.Collections.singletonList(new android.util.SizeF(w,h)));
+            android.util.Log.i("WidgetQualification", "SAME_VIEW_RESIZE id="+activeId+" span="+x+"x"+y);
+        }
+    };
     private static final Map<String,Integer> ids = new HashMap<>();
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
     private TextView label(String s, int sp) {
@@ -21,6 +41,9 @@ public class HostActivity extends Activity {
     }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(resizeReceiver,
+                new android.content.IntentFilter("com.vanipy.widgethost.RESIZE"), RECEIVER_EXPORTED);
+        else registerReceiver(resizeReceiver,new android.content.IntentFilter("com.vanipy.widgethost.RESIZE"));
         boolean expanded = getIntent().getBooleanExtra("expanded", false);
         boolean strips = getIntent().getBooleanExtra("strips", false);
         boolean intermediate = getIntent().getBooleanExtra("intermediate", false);
@@ -70,6 +93,7 @@ public class HostActivity extends Activity {
             mgr.updateAppWidgetOptions(id, opts);
             AppWidgetHostView view = host.createView(this,id,info);
             grid.addView(view,lp);
+            if (single >= 0) { activeView=view; activeId=id; activeCellW=cellW; activeCellH=cellH; }
             view.updateAppWidgetSize(opts, java.util.Collections.singletonList(new android.util.SizeF(
                     lp.width / getResources().getDisplayMetrics().density,
                     lp.height / getResources().getDisplayMetrics().density)));
@@ -80,5 +104,5 @@ public class HostActivity extends Activity {
         setContentView(root);
         if (added != (single >= 0 ? 1 : expanded ? 2 : 6)) throw new IllegalStateException("Missing or unbound providers: " + added);
     }
-    @Override protected void onDestroy() { if(host!=null)host.stopListening();super.onDestroy(); }
+    @Override protected void onDestroy() { unregisterReceiver(resizeReceiver);if(host!=null)host.stopListening();super.onDestroy(); }
 }
