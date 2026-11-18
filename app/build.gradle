@@ -10,8 +10,8 @@ android {
         applicationId 'com.vanipy.menit'
         minSdk 26
         targetSdk 34
-        versionCode = (project.findProperty('versionCode') ?: '4').toString().toInteger()
-        versionName = (project.findProperty('versionName') ?: '0.2.0').toString()
+        versionCode = (project.findProperty('versionCode') ?: '5').toString().toInteger()
+        versionName = (project.findProperty('versionName') ?: '0.2.1').toString()
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
