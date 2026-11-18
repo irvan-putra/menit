@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mkdir -p host-evidence
+trap 'adb logcat -d > host-evidence/logcat-all.txt; adb shell dumpsys appwidget > host-evidence/appwidget-final.txt' EXIT
 adb root
 adb wait-for-device
 adb shell wm size 1080x2340
@@ -34,6 +35,11 @@ PYSEED
 adb shell am force-stop com.vanipy.intodo
 adb push /tmp/intodo-demo.xml /data/local/tmp/intodo-demo.xml
 adb shell 'mkdir -p /data/data/com.vanipy.intodo/shared_prefs; cp /data/local/tmp/intodo-demo.xml /data/data/com.vanipy.intodo/shared_prefs/instinct_widget.xml; chown -R $(stat -c %u /data/data/com.vanipy.intodo):$(stat -c %g /data/data/com.vanipy.intodo) /data/data/com.vanipy.intodo/shared_prefs'
+# Android15 keeps a force-stopped app widget suspended until explicit launch.
+# This starts synthetic fixture apps in this disposable emulator only.
+for p in menit tumbuh denyut kemas; do
+ adb shell am start -W -n "com.vanipy.$p/.MainActivity"
+done
 adb shell appwidget grantbind --package com.vanipy.widgethost --user 0
 if [ "${INTODO_ONLY:-false}" = true ]; then
   for span in 1x1 5x1 5x6; do
