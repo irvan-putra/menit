@@ -35,19 +35,12 @@ adb shell am force-stop com.vanipy.intodo
 adb push /tmp/intodo-demo.xml /data/local/tmp/intodo-demo.xml
 adb shell 'mkdir -p /data/data/com.vanipy.intodo/shared_prefs; cp /data/local/tmp/intodo-demo.xml /data/data/com.vanipy.intodo/shared_prefs/instinct_widget.xml; chown -R $(stat -c %u /data/data/com.vanipy.intodo):$(stat -c %g /data/data/com.vanipy.intodo) /data/data/com.vanipy.intodo/shared_prefs'
 adb shell appwidget grantbind --package com.vanipy.widgethost --user 0
-for mode in counters strips expanded-first expanded-last counters-resized; do
+for mode in counters strips expanded-first expanded-middle expanded-last counters-resized; do
   args=''
-  case "$mode" in strips) args='--ez strips true';; expanded-first) args='--ez expanded true --ei start 0';; expanded-last) args='--ez expanded true --ei start 3';; esac
+  case "$mode" in strips) args='--ez strips true';; expanded-first) args='--ez expanded true --ei start 0';; expanded-middle) args='--ez expanded true --ei start 2';; expanded-last) args='--ez expanded true --ei start 4';; esac
   adb shell am start -W -f 0x04000000 -n com.vanipy.widgethost/.HostActivity $args
-  # Wait for provider updates and view inflation, bounded by 30 seconds.
-  for i in $(seq 1 15); do
-    adb shell uiautomator dump /sdcard/host.xml
-    adb pull /sdcard/host.xml host-evidence/current.xml
-    if grep -q 'DEMO' host-evidence/current.xml; then break; fi
-    sleep 2
-  done
-  if grep -Eqi "Problem loading widget|Couldn.t add widget|BIND FAILED|not installed" host-evidence/current.xml; then exit 1; fi
-  sleep 2
+  # Require the expected layouts, not merely any DEMO string from a stale frame.
+  python3 tools/widget-host/wait-mode.py "$mode"
   adb exec-out screencap -p > "host-evidence/$mode.png"
   cp host-evidence/current.xml "host-evidence/$mode.xml"
 done

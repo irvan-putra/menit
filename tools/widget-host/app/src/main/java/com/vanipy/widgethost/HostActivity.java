@@ -43,11 +43,11 @@ public class HostActivity extends Activity {
             AppWidgetProviderInfo info = null;
             for (AppWidgetProviderInfo p : providers) if (p.provider.getPackageName().equals(pkgs[i])) { info = p; break; }
             int cols = expanded || strips ? 5 : 1;
-            int rows = expanded ? 2 : 1;
-            int row = expanded ? (i % 3) * 2 : strips ? i : i / 3;
+            int rows = expanded ? 3 : 1;
+            int row = expanded ? (i % 2) * 3 : strips ? i : i / 3;
             int col = expanded || strips ? 0 : i % 3 + 1;
             if (expanded && i < getIntent().getIntExtra("start", 0)) continue;
-            if (expanded && i >= getIntent().getIntExtra("start", 0) + 3) continue;
+            if (expanded && i >= getIntent().getIntExtra("start", 0) + 2) continue;
             GridLayout.LayoutParams lp = new GridLayout.LayoutParams(GridLayout.spec(row, rows), GridLayout.spec(col, cols));
             lp.width = cellW * cols; lp.height = cellH * rows;
             if (info == null) { TextView missing=label(pkgs[i].substring(11)+"\nnot installed", 10);grid.addView(missing,lp);continue; }
@@ -71,9 +71,9 @@ public class HostActivity extends Activity {
             added++;
             android.util.Log.i("WidgetQualification", "BOUND " + pkgs[i]+" id="+id+" content="+contentW+"x"+contentH);
         }
-        root.addView(label("Bound providers: "+added+" / "+(expanded ? 3 : 6), 12));
+        root.addView(label("Bound providers: "+added+" / "+(expanded ? 2 : 6), 12));
         setContentView(root);
-        if (added != (expanded ? 3 : 6)) throw new IllegalStateException("Missing or unbound providers: " + added);
+        if (added != (expanded ? 2 : 6)) throw new IllegalStateException("Missing or unbound providers: " + added);
     }
     @Override protected void onDestroy() { if(host!=null)host.stopListening();super.onDestroy(); }
 }
