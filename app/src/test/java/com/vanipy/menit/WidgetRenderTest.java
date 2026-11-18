@@ -60,6 +60,23 @@ public class WidgetRenderTest {
     }
 
     @Test
+    public void widgetDemoNeverShowsRealUsage() throws Exception {
+        Context c = RuntimeEnvironment.getApplication();
+        // Usage access granted, real usage would be readable - demo must still win.
+        AppOpsManager ops = (AppOpsManager) c.getSystemService(Context.APP_OPS_SERVICE);
+        Shadows.shadowOf(ops).setMode(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), "com.vanipy.menit", AppOpsManager.MODE_ALLOWED);
+        c.getSharedPreferences("menit_prefs", Context.MODE_PRIVATE).edit().putBoolean("demo_mode", true).commit();
+        FrameLayout parent = new FrameLayout(c);
+        View v = MenitWidgetProvider.buildViews(c).apply(c, parent);
+        android.widget.TextView badge = v.findViewById(R.id.widget_demo_badge);
+        android.widget.TextView time = v.findViewById(R.id.widget_ai_time);
+        assertEquals(View.VISIBLE, badge.getVisibility());
+        assertEquals("47 min", time.getText().toString());
+        c.getSharedPreferences("menit_prefs", Context.MODE_PRIVATE).edit().clear().commit();
+    }
+
+    @Test
     public void demoReportMatchesClaimedNumbers() {
         Report r = DemoData.report("com.vanipy.menit");
         assertEquals(192 * 60_000L, r.totalMs);
