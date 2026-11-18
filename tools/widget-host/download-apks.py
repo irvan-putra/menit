@@ -3,8 +3,14 @@ import os,json,urllib.request,zipfile,io,pathlib,hashlib,time
 runs=json.loads(os.environ['ARTIFACT_RUNS'])
 base='https://api.github.com/repos/irvan-putra/'
 headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'}
+class Redirect(urllib.request.HTTPRedirectHandler):
+ def redirect_request(self, req, fp, code, msg, headers, newurl):
+  new=super().redirect_request(req,fp,code,msg,headers,newurl)
+  new.remove_header('Authorization')
+  return new
+opener=urllib.request.build_opener(Redirect())
 def get(url):
- with urllib.request.urlopen(urllib.request.Request(url,headers=headers)) as r:return r.read()
+ with opener.open(urllib.request.Request(url,headers=headers)) as r:return r.read()
 out=pathlib.Path('host-apks');out.mkdir(exist_ok=True)
 for repo,spec in runs.items():
  run=str(spec['run']); needle=spec['artifact']
