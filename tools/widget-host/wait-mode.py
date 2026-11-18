@@ -1,14 +1,26 @@
 import subprocess,xml.etree.ElementTree as E,time,sys,pathlib
 mode=sys.argv[1]
+content_ids={
+ 'com.vanipy.intodo':['widget_list'],
+ 'com.vanipy.saku':['widget_status'],
+ 'com.vanipy.menit':['widget_ai_time'],
+ 'com.vanipy.tumbuh':['widget_step_detail'],
+ 'com.vanipy.denyut':['widget_reminder_due'],
+ 'com.vanipy.kemas':['widget_progress'],
+}
+import os
+single_pkg=os.environ.get('SINGLE_PKG','')
 required={
  'counters':['widget_summary_count','widget_lock','widget_ai_time','widget_step_title','widget_reminder','widget_zone'],
  'counters-resized':['widget_summary_count','widget_lock','widget_ai_time','widget_step_title','widget_reminder','widget_zone'],
- 'intermediate':['widget_summary_count','widget_lock','widget_ai_time','widget_step_title','widget_reminder','widget_zone'],
+ 'intermediate':['widget_list','widget_status','widget_ai_time','widget_step_detail','widget_reminder_due','widget_progress'],
+ 'single-content':[],
  'strips':['widget_list','widget_status','widget_compact_label','widget_step_detail','widget_reminder_due','widget_before'],
  'expanded-first':['widget_list','widget_title','widget_status'],
  'expanded-middle':['widget_apps','widget_counts'],
  'expanded-last':['widget_notes','widget_before','widget_after'],
 }[mode]
+if mode=='single-content': required=content_ids[single_pkg]
 last=b''
 for _ in range(25):
  subprocess.run(['adb','shell','rm','-f','/sdcard/host.xml'],check=True,capture_output=True)

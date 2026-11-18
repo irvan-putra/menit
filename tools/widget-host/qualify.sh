@@ -48,6 +48,17 @@ if [ "${INTODO_ONLY:-false}" = true ]; then
   sha256sum host-apks/intodo.apk > host-evidence/intodo-apk-hash.txt
   exit 0
 fi
+pkgs=(com.vanipy.intodo com.vanipy.saku com.vanipy.menit com.vanipy.tumbuh com.vanipy.denyut com.vanipy.kemas)
+# The user's Samsung showed counter-only blanks at 2-3 columns; require populated content there.
+for i in 0 1 2 3 4 5; do
+  for span in 2x1 3x1 2x2 3x2; do
+    x=${span%x*}; y=${span#*x}
+    adb shell am start -W -f 0x04000000 -n com.vanipy.widgethost/.HostActivity --ei single "$i" --ei spanX "$x" --ei spanY "$y"
+    SINGLE_PKG="${pkgs[$i]}" python3 tools/widget-host/wait-mode.py single-content
+    adb exec-out screencap -p > "host-evidence/${pkgs[$i]##*.}-$span.png"
+    cp host-evidence/current.xml "host-evidence/${pkgs[$i]##*.}-$span.xml"
+  done
+done
 for mode in counters strips intermediate expanded-first expanded-middle expanded-last counters-resized; do
   args=''
   case "$mode" in intermediate) args='--ez intermediate true';; strips) args='--ez strips true';; expanded-first) args='--ez expanded true --ei start 0';; expanded-middle) args='--ez expanded true --ei start 2';; expanded-last) args='--ez expanded true --ei start 4';; esac
