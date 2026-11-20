@@ -1,0 +1,19 @@
+PASS clean resume/pause and bounded heartbeats credit 30s
+PASS no header stays unknown
+PASS no heartbeat means no reader coverage
+PASS 20s gap is not bridged
+PASS missing close leaves whole open tail pending
+PASS SCREEN_OFF bounds foreground and coverage
+PASS SHUTDOWN bounds foreground and coverage
+PASS duplicate events never double credit
+PASS previous boot label ignored
+PASS prior boot resume cannot create new epoch interval
+PASS simultaneous conflicting resumes fabricate no foreground
+PASS resume/pause tie is not silently ordered
+PASS boundary label at end earns no future credit
+PASS label before foreground start not carried in
+PASS reentry does not reuse prior header
+PASS out of window event rejected
+PASS nonpositive heartbeat gap rejected
+PASS 1000 shuffled input orders agree
+ALL PASS 18 input-contract checks; synthetic host-only, not Android accuracy proof

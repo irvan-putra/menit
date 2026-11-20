@@ -1,0 +1,29 @@
+JUnit version 4.13.2
+.PASS 1 stale gap: recognised grace only got=30000 want=30000
+PASS 1 unknown fg got=480000 want=480000
+PASS 2 exit to launcher got=10000 want=10000
+PASS 3 same-t conflict order0: recognised 0 got=0 want=0
+PASS 3 same-t conflict order0: watched_other 0 got=0 want=0
+PASS 3 same-t conflict order0: unknown got=30000 want=30000
+PASS 3 same-t conflict order1: recognised 0 got=0 want=0
+PASS 3 same-t conflict order1: watched_other 0 got=0 want=0
+PASS 3 same-t conflict order1: unknown got=30000 want=30000
+PASS 3b identical duplicates dedupe got=30000 want=30000
+PASS 4 overlap same pkg: total attributed = wall got=90000 want=90000
+PASS 4b duplicate interval got=60000 want=60000
+PASS 5 multi-window got=40000 want=40000
+PASS 5 attributed + multi = wall got=80000 want=80000
+PASS 6 pending got=60000 want=60000
+PASS 6 not credited got=0 want=0
+PASS 7 no_data got=2990000 want=2990000
+PASS 7 probable off got=0 want=0
+PASS 8 probable default off got=0 want=0
+PASS 8 probable on within cap got=70000 want=70000
+PASS 8 probable beyond cap -> unknown got=0 want=0
+PASS 9 wall from elapsed got=990000 want=990000
+2421239 assertions (not input-space coverage), oracle mismatches=0, ALL PASS
+
+Time: 1.276
+
+OK (1 test)
+

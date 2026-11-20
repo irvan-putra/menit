@@ -1,0 +1,13 @@
+case,RECOGNISED,PROBABLE,WATCHED_OTHER,UNKNOWN_FG,NO_DATA,PENDING,MULTI_WINDOW
+known_then_known_other,20000,0,30000,10000,0,0,0
+no_header_never_credit,0,0,0,60000,0,0,0
+explicit_unknown_ends_known,10000,0,0,50000,0,0,0
+stale_30sec_not_entire_session,30000,0,0,30000,0,0,0
+service_gap_not_bridged,10000,0,0,40000,10000,0,0
+conflicting_known_ids_unknown,0,0,0,30000,0,0,0
+old_header_not_reused_after_exit,10000,0,0,20000,0,0,0
+other_package_label_cannot_credit,0,0,0,30000,0,0,0
+observation_at_end_is_outside,0,0,0,30000,0,0,0
+unsettled_process_tail_pending,0,0,0,0,0,30000,0
+overlap_not_double_credit,10000,0,0,10000,0,0,10000
+probable_off_even_same_id_brackets,40000,0,0,60000,0,0,0

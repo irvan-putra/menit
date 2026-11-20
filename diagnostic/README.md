@@ -20,3 +20,7 @@ License: GPL-3.0-only.
 - Time base is elapsed-realtime; a trailing-edge throttle reads the last event of a quick A to B switch.
 - Signing: no signed APK or release is published. The manual signing workflow is only a draft reference in `workflows/sign-diag-apk.yml`; it is outside GitHub's active workflow directory. A dedicated key and main-restricted signing environment must be set up before any signing workflow is activated. No key or password is in this tree.
 - Host checks: JUnit logic tests plus real-store scenarios. The repository-root diagnostic workflow runs both the host scenarios and Gradle tests/build without artifact upload. Not run on a device or emulator.
+
+## Host-only input contract
+
+The [synthetic event/coverage contract](tools/input-contract/README.md) exercises fake resume/pause, screen-off/shutdown, heartbeat gaps and boot epochs against the existing reconciler. It is outside Android source sets and does not enable real-app reading or change the diagnostic APK.

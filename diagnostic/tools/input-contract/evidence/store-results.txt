@@ -1,0 +1,11 @@
+PASS 1 open session kept after archive
+PASS 1 after reload: one settled interval
+PASS 2 kill after archive is seen as killed interval
+PASS 3 archive in background: no killed
+PASS 4 rotation happened
+PASS 4 kill after rotation seen: killed=1 and interval reaches last beat
+PASS 5 clean close after rotation: settled, start original, killed 0
+PASS 6 rotation exactly at fgStart: no spurious kill
+PASS 7 rotation rename fails: exactly one FS line in the log
+PASS 7 reload after failed rotation: killed=1 only
+ALL PASS

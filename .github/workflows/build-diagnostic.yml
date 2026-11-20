@@ -26,6 +26,8 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
       - name: Host scenarios on the real DiagStore (stubs, no Android runtime)
         run: sh diagnostic/tools/host-test-stubs/run.sh
+      - name: Synthetic input/coverage contract (host only)
+        run: sh diagnostic/tools/input-contract/run.sh
       - name: Gradle 8.7 (checksum verified)
         run: |
           curl -sL -o /tmp/g.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
