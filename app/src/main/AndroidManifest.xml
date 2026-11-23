@@ -10,7 +10,7 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/ic_launcher"
         android:label="menit"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <receiver
