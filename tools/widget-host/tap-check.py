@@ -2,11 +2,11 @@
 import re,subprocess,time,xml.etree.ElementTree as E,pathlib,os
 out=pathlib.Path('host-evidence')
 def adb(*args):return subprocess.run(['adb',*args],capture_output=True,check=True).stdout
-for pkg,rid in [('intodo','widget_summary_root'),('saku','widget_container'),('menit','widget_root'),('tumbuh','widget_root'),('denyut','widget_root'),('kemas','widget_root')]:
- if os.environ.get('INTODO_ONLY')=='true' and pkg!='intodo':continue
+for pkg,rid in [('tindak','widget_summary_root'),('saku','widget_container'),('menit','widget_root'),('tumbuh','widget_root'),('denyut','widget_root'),('kemas','widget_root')]:
+ if os.environ.get('TINDAK_ONLY')=='true' and pkg!='tindak':continue
  full='com.vanipy.'+pkg
  args=['shell','am','start','-W','-f','0x04000000','-n','com.vanipy.widgethost/.HostActivity']
- if os.environ.get('INTODO_ONLY')=='true':args+=['--ei','single','0','--ei','spanX','1','--ei','spanY','1']
+ if os.environ.get('TINDAK_ONLY')=='true':args+=['--ei','single','0','--ei','spanX','1','--ei','spanY','1']
  adb(*args)
  found=None
  for _ in range(10):

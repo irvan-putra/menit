@@ -1,7 +1,7 @@
 import subprocess,xml.etree.ElementTree as E,time,sys,pathlib
 mode=sys.argv[1]
 content_ids={
- 'com.vanipy.intodo':['widget_list','item_title'],
+ 'com.vanipy.tindak':['widget_list','item_title'],
  'com.vanipy.saku':['widget_status'],
  'com.vanipy.menit':['widget_ai_time','widget_detail'],
  'com.vanipy.tumbuh':['widget_step_detail'],
@@ -33,7 +33,7 @@ for _ in range(25):
   assert all(x in ids for x in required)
   assert 'demo' not in text.lower()
   assert 'loading' not in text.lower()
-  if (mode=='single-content' and single_pkg=='com.vanipy.intodo') or mode in ['strips','intermediate','expanded-first']:
+  if (mode=='single-content' and single_pkg=='com.vanipy.tindak') or mode in ['strips','intermediate','expanded-first']:
    assert 'Read chapter' in text, 'real collection rows missing'
   if mode=='single-content':
    visible_text = [n.get('text','').strip() for n in nodes if n.get('resource-id','').split(':id/')[-1] in required]

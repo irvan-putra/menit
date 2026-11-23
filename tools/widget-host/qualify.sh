@@ -26,43 +26,47 @@ pathlib.Path('/tmp/tumbuh-demo.json').write_text(json.dumps(dict(format='tumbuh-
 PY
 adb push /tmp/tumbuh-demo.json /data/local/tmp/tumbuh-demo.json
 adb shell 'mkdir -p /data/data/com.vanipy.tumbuh/files; cp /data/local/tmp/tumbuh-demo.json /data/data/com.vanipy.tumbuh/files/tumbuh-demo.json; chown -R $(stat -c %u /data/data/com.vanipy.tumbuh):$(stat -c %g /data/data/com.vanipy.tumbuh) /data/data/com.vanipy.tumbuh/files'
+# tindak rejects non-synthetic demo feeds (DemoFeed.isSynthetic), so the seed uses
+# its DEMO format: section titles start "DEMO - ", item ids start "demo-". Demo-mode
+# keys are stored with a demo_ prefix in tindak_widget.xml.
 python3 - <<'PYSEED'
 import json,xml.etree.ElementTree as E
-feed=dict(generated_at='2026-01-01T00:00:00Z', sections=[dict(id='demo',title='Synthetic list',items=[dict(id=str(i),title='Read chapter '+str(i),note='Next small step',status='open') for i in range(1,7)])])
-root=E.Element('map');E.SubElement(root,'string',name='feed').text=json.dumps(feed)
-E.ElementTree(root).write('/tmp/intodo-demo.xml', encoding='utf-8', xml_declaration=True)
+feed=dict(generated_at='2026-01-01T00:00:00Z', sections=[dict(id='demo-chapters',title='DEMO - Chapters',items=[dict(id='demo-chapter-'+str(i),title='DEMO: Read chapter '+str(i),note='Next small step',status='open') for i in range(1,7)])])
+root=E.Element('map');E.SubElement(root,'boolean',name='demo_mode',value='true')
+E.SubElement(root,'string',name='demo_feed').text=json.dumps(feed)
+E.ElementTree(root).write('/tmp/tindak-demo.xml', encoding='utf-8', xml_declaration=True)
 PYSEED
-adb shell am force-stop com.vanipy.intodo
-adb push /tmp/intodo-demo.xml /data/local/tmp/intodo-demo.xml
-adb shell 'mkdir -p /data/data/com.vanipy.intodo/shared_prefs; cp /data/local/tmp/intodo-demo.xml /data/data/com.vanipy.intodo/shared_prefs/instinct_widget.xml; chown -R $(stat -c %u /data/data/com.vanipy.intodo):$(stat -c %g /data/data/com.vanipy.intodo) /data/data/com.vanipy.intodo/shared_prefs'
+adb shell am force-stop com.vanipy.tindak
+adb push /tmp/tindak-demo.xml /data/local/tmp/tindak-demo.xml
+adb shell 'mkdir -p /data/data/com.vanipy.tindak/shared_prefs; cp /data/local/tmp/tindak-demo.xml /data/data/com.vanipy.tindak/shared_prefs/tindak_widget.xml; chown -R $(stat -c %u /data/data/com.vanipy.tindak):$(stat -c %g /data/data/com.vanipy.tindak) /data/data/com.vanipy.tindak/shared_prefs'
 # Android15 keeps a force-stopped app widget suspended until explicit launch.
 # This starts synthetic fixture apps in this disposable emulator only.
-for p in menit tumbuh denyut kemas; do
+for p in tindak menit tumbuh denyut kemas; do
  adb shell am start -W -n "com.vanipy.$p/.MainActivity"
 done
 adb shell appwidget grantbind --package com.vanipy.widgethost --user 0
-if [ "${INTODO_ONLY:-false}" = true ]; then
+if [ "${TINDAK_ONLY:-false}" = true ]; then
   for span in 1x1 5x1 5x6; do
     x=${span%x*}; y=${span#*x}
     adb shell am start -W -f 0x04000000 -n com.vanipy.widgethost/.HostActivity --ei single 0 --ei spanX "$x" --ei spanY "$y"
-    adb shell uiautomator dump /sdcard/intodo.xml
-    adb pull /sdcard/intodo.xml "host-evidence/intodo-$span.xml"
-    adb exec-out screencap -p > "host-evidence/intodo-$span.png"
+    adb shell uiautomator dump /sdcard/tindak.xml
+    adb pull /sdcard/tindak.xml "host-evidence/tindak-$span.xml"
+    adb exec-out screencap -p > "host-evidence/tindak-$span.png"
   done
   python3 tools/widget-host/tap-check.py
-  adb shell dumpsys package com.vanipy.intodo > host-evidence/intodo-package.txt
-  sha256sum host-apks/intodo.apk > host-evidence/intodo-apk-hash.txt
+  adb shell dumpsys package com.vanipy.tindak > host-evidence/tindak-package.txt
+  sha256sum host-apks/tindak.apk > host-evidence/tindak-apk-hash.txt
   exit 0
 fi
-pkgs=(com.vanipy.intodo com.vanipy.saku com.vanipy.menit com.vanipy.tumbuh com.vanipy.denyut com.vanipy.kemas)
+pkgs=(com.vanipy.tindak com.vanipy.saku com.vanipy.menit com.vanipy.tumbuh com.vanipy.denyut com.vanipy.kemas)
 # Resize the SAME live HostView and widget ID repeatedly, including counter transitions.
 adb shell am start -W -f 0x04000000 -n com.vanipy.widgethost/.HostActivity --ei single 0 --ei spanX 2 --ei spanY 1
 for span in 3x1 2x2 3x2 5x6 2x1 3x2; do
  x=${span%x*}; y=${span#*x}
  adb shell am broadcast -a com.vanipy.widgethost.RESIZE -p com.vanipy.widgethost --ei spanX "$x" --ei spanY "$y"
- SINGLE_PKG=com.vanipy.intodo python3 tools/widget-host/wait-mode.py single-content
- cp host-evidence/current.xml "host-evidence/intodo-live-resize-$span.xml"
- adb exec-out screencap -p > "host-evidence/intodo-live-resize-$span.png"
+ SINGLE_PKG=com.vanipy.tindak python3 tools/widget-host/wait-mode.py single-content
+ cp host-evidence/current.xml "host-evidence/tindak-live-resize-$span.xml"
+ adb exec-out screencap -p > "host-evidence/tindak-live-resize-$span.png"
  if [ "$span" = 5x6 ]; then
   python3 -c 'import pathlib; s=pathlib.Path("host-evidence/current.xml").read_text(); assert all("Read chapter "+str(i) in s for i in range(1,7)), "Six items not preserved"'
  fi
