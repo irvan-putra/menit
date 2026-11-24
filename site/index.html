@@ -89,4 +89,5 @@ $("demo").onclick=()=>{[["ChatGPT",42],["Claude",25],["Chrome",90],["WhatsApp",7
 $("exp").onclick=()=>{const u=URL.createObjectURL(new Blob([JSON.stringify({menit_web:1,entries:E},null,1)],{type:"application/json"}));const a=document.createElement("a");a.href=u;a.download="menit-web-v1-entries.json";a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
 $("imp").onchange=async e=>{try{const j=JSON.parse(await e.target.files[0].text());const l=(j.entries||[]).filter(valid);l.forEach(x=>put(x.day,x.app,Math.round(x.min)));save();render()}catch(x){alert("Not a Menit web export.")}e.target.value=""};
 render();
-</script></body></html>
+</script><p class="ai-note" style="text-align:center;font:12px/1.4 system-ui,sans-serif;opacity:.7;margin:24px 12px">Built with AI assistance (Instinct and others). Not everything has been reviewed by Irvan.</p>
+</body></html>

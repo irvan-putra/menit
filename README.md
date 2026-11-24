@@ -49,3 +49,7 @@ The main Menit app has no third-party runtime libraries. JUnit (EPL-1.0) and Rob
 SPDX-License-Identifier: GPL-3.0-only
 
 The Menit source is licensed under GPL-3.0-only. See [LICENSE](LICENSE) for the full license text.
+
+---
+
+Built with AI assistance (Instinct and others). Not everything has been reviewed by Irvan.
